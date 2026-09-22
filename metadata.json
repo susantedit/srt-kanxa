@@ -1,0 +1,6 @@
+{
+  "name": "SRT X CHEATS",
+  "description": "Premium Android gaming performance panel with real-time FPS monitoring, AMOLED gaming overlay, touch & memory optimization, and Shizuku integration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
