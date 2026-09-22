@@ -58,6 +58,18 @@ class DataStoreManager(private val context: Context) {
         private val KEY_GAMING_MODE_ACTIVE = booleanPreferencesKey("gaming_mode_active")
         private val KEY_PERFORMANCE_BOOST_ACTIVE = booleanPreferencesKey("performance_boost_active")
         private val KEY_SAMPLING_INTERVAL_MS = intPreferencesKey("sampling_interval_ms")
+        private val KEY_OVERLAY_TAB = stringPreferencesKey("overlay_tab")
+        private val KEY_SENSI_REDUCTION_PERCENT = intPreferencesKey("sensi_reduction_percent")
+        private val KEY_MARKER_ROTATE_DEG = floatPreferencesKey("marker_rotate_deg")
+        private val KEY_FIRE_MACRO_ENABLED = booleanPreferencesKey("fire_macro_enabled")
+        private val KEY_FIRE_MACRO_POS_X = intPreferencesKey("fire_macro_pos_x")
+        private val KEY_FIRE_MACRO_POS_Y = intPreferencesKey("fire_macro_pos_y")
+        private val KEY_FIRE_MACRO_SIZE_DP = intPreferencesKey("fire_macro_size_dp")
+        private val KEY_FIRE_MACRO_COLOR = longPreferencesKey("fire_macro_color")
+        private val KEY_FIRE_MACRO_BOUNDARY_RADIUS = floatPreferencesKey("fire_macro_boundary_radius")
+        private val KEY_FIRE_MACRO_SENS_X = floatPreferencesKey("fire_macro_sens_x")
+        private val KEY_FIRE_MACRO_SENS_Y = floatPreferencesKey("fire_macro_sens_y")
+        private val KEY_FIRE_MACRO_ALPHA = floatPreferencesKey("fire_macro_alpha")
 
         // Helper to get package-specific key
         private fun pkgKey(pkg: String, base: String) = "${pkg.replace('.', '_')}_$base"
@@ -195,7 +207,19 @@ class DataStoreManager(private val context: Context) {
             glassTransparency = alpha,
             glassBlur = blur,
             overlayPosX = prefs[KEY_OVERLAY_POS_X] ?: 50,
-            overlayPosY = prefs[KEY_OVERLAY_POS_Y] ?: 200
+            overlayPosY = prefs[KEY_OVERLAY_POS_Y] ?: 200,
+            overlayTab = prefs[KEY_OVERLAY_TAB] ?: "ABOUT",
+            sensiReductionPercent = prefs[KEY_SENSI_REDUCTION_PERCENT] ?: 0,
+            markerRotateDeg = prefs[KEY_MARKER_ROTATE_DEG] ?: 0f,
+            fireMacroEnabled = prefs[KEY_FIRE_MACRO_ENABLED] ?: false,
+            fireMacroPosX = prefs[KEY_FIRE_MACRO_POS_X] ?: 150,
+            fireMacroPosY = prefs[KEY_FIRE_MACRO_POS_Y] ?: 350,
+            fireMacroSizeDp = prefs[KEY_FIRE_MACRO_SIZE_DP] ?: 70,
+            fireMacroColor = prefs[KEY_FIRE_MACRO_COLOR] ?: 0xFFFF1744,
+            fireMacroBoundaryRadius = prefs[KEY_FIRE_MACRO_BOUNDARY_RADIUS] ?: 60f,
+            fireMacroSensX = prefs[KEY_FIRE_MACRO_SENS_X] ?: 1.0f,
+            fireMacroSensY = prefs[KEY_FIRE_MACRO_SENS_Y] ?: 1.0f,
+            fireMacroAlpha = prefs[KEY_FIRE_MACRO_ALPHA] ?: 0.85f
         )
     }
 
@@ -445,6 +469,73 @@ class DataStoreManager(private val context: Context) {
     suspend fun setSamplingInterval(ms: Int) {
         context.dataStore.edit { prefs ->
             prefs[KEY_SAMPLING_INTERVAL_MS] = ms
+        }
+    }
+
+    suspend fun saveOverlayTab(tab: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_OVERLAY_TAB] = tab
+        }
+    }
+
+    suspend fun saveSensiReduction(reduction: Int) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_SENSI_REDUCTION_PERCENT] = reduction
+        }
+    }
+
+    suspend fun saveMarkerRotate(deg: Float) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_MARKER_ROTATE_DEG] = deg
+        }
+    }
+
+    suspend fun saveFireMacroEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_FIRE_MACRO_ENABLED] = enabled
+        }
+    }
+
+    suspend fun saveFireMacroPosition(x: Int, y: Int) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_FIRE_MACRO_POS_X] = x
+            prefs[KEY_FIRE_MACRO_POS_Y] = y
+        }
+    }
+
+    suspend fun saveFireMacroSize(sizeDp: Int) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_FIRE_MACRO_SIZE_DP] = sizeDp
+        }
+    }
+
+    suspend fun saveFireMacroColor(color: Long) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_FIRE_MACRO_COLOR] = color
+        }
+    }
+
+    suspend fun saveFireMacroBoundaryRadius(radius: Float) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_FIRE_MACRO_BOUNDARY_RADIUS] = radius
+        }
+    }
+
+    suspend fun saveFireMacroSensX(sensX: Float) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_FIRE_MACRO_SENS_X] = sensX
+        }
+    }
+
+    suspend fun saveFireMacroSensY(sensY: Float) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_FIRE_MACRO_SENS_Y] = sensY
+        }
+    }
+
+    suspend fun saveFireMacroAlpha(alpha: Float) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_FIRE_MACRO_ALPHA] = alpha.coerceIn(0.1f, 1.0f)
         }
     }
 }

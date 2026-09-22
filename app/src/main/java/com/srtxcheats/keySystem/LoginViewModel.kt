@@ -50,26 +50,12 @@ class LoginViewModel(private val repository: KeyRepository) : ViewModel() {
                         }
                     },
                     onFailure = { err ->
-                        // If network offline or timed out, allow temporary grace if cached was recently verified
-                        val isRecent = (System.currentTimeMillis() - cached.verifiedTimestamp) < 24 * 60 * 60 * 1000L
-                        if (isRecent) {
-                            AppLogger.i("Offline grace session active for valid cached key")
-                            _uiState.value = LoginUiState.Success(
-                                VerifyKeyResponse(
-                                    valid = true,
-                                    message = "Authorized (Offline Mode)",
-                                    key = cached.key,
-                                    expiresAt = cached.expiresAt,
-                                    daysLeft = cached.daysLeft,
-                                    type = cached.type
-                                )
-                            )
-                        } else {
-                            when (err.message) {
-                                "SERVER_OFFLINE" -> _uiState.value = LoginUiState.ServerOffline
-                                "OFFLINE", "TIMEOUT" -> _uiState.value = LoginUiState.NetworkError("Network offline or timeout. Please check your connection.")
-                                else -> _uiState.value = LoginUiState.Error(err.message ?: "Authentication failed")
-                            }
+                        // Strict mode: Never bypass or mock. Always require live server authorization.
+                        when (err.message) {
+                            "SERVER_OFFLINE" -> _uiState.value = LoginUiState.ServerOffline
+                            "OFFLINE" -> _uiState.value = LoginUiState.NetworkError("Internet connection required for strict verification.")
+                            "TIMEOUT" -> _uiState.value = LoginUiState.NetworkError("Connection timed out. Server may be starting, please retry.")
+                            else -> _uiState.value = LoginUiState.Error(err.message ?: "Strict authentication failed")
                         }
                     }
                 )

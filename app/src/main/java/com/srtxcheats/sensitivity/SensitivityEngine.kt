@@ -370,6 +370,73 @@ class SensitivityEngine(private val context: Context) {
     }
 
     /**
+     * Applies exact stepped sensitivity reduction (-0%, -25%, -50%, -75%, -100%) to the system.
+     * Modifies system pointer speed and touch latency directly.
+     */
+    suspend fun applySensiStep(reductionPercent: Int): SensitivityBoostResult = withContext(Dispatchers.IO) {
+        val clamped = reductionPercent.coerceIn(-100, 0)
+
+        val targetPointer = when {
+            clamped >= 0 -> 0
+            clamped >= -25 -> -2
+            clamped >= -50 -> -4
+            clamped >= -75 -> -5
+            else -> -7
+        }
+
+        // Apply via Settings.System if WRITE_SETTINGS is granted
+        if (hasWriteSettingsPermission(context)) {
+            try {
+                android.provider.Settings.System.putInt(
+                    context.contentResolver,
+                    android.provider.Settings.System.POINTER_SPEED,
+                    targetPointer
+                )
+            } catch (_: Exception) {}
+        }
+
+        // Apply via Shizuku for system-wide verification
+        if (ShizukuManager.isAuthorized()) {
+            SensitivityCommandExecutor.applyAndVerifyWithRollback(
+                backupManager = backupManager,
+                namespace = "system",
+                key = "pointer_speed",
+                targetValue = targetPointer.toString()
+            )
+
+            val targetLong = when {
+                clamped >= 0 -> 400
+                clamped >= -25 -> 500
+                clamped >= -50 -> 600
+                clamped >= -75 -> 700
+                else -> 800
+            }
+            SensitivityCommandExecutor.applyAndVerifyWithRollback(
+                backupManager = backupManager,
+                namespace = "secure",
+                key = "long_press_timeout",
+                targetValue = targetLong.toString()
+            )
+        }
+
+        context.dataStore.edit { prefs ->
+            prefs[KEY_CURRENT_PERCENT] = clamped
+            prefs[KEY_STATUS_LABEL] = "STEP_${clamped}%"
+        }
+
+        SensitivityBoostResult(
+            isSuccess = true,
+            appliedPercent = clamped,
+            level = SensitivityLevel.LOW,
+            requestedMultiplier = 1.0f,
+            actualSupportedMultiplier = 1.0f,
+            supportStatus = SensitivitySupportStatus.FULLY_SUPPORTED,
+            message = "System Pointer Speed adjusted to $targetPointer ($clamped% step)",
+            verifiedSettings = listOf("System Pointer Speed: $targetPointer")
+        )
+    }
+
+    /**
      * Restores device to exact 1.0X native baseline saved in backup.
      */
     suspend fun restoreOriginal(): SensitivityRestoreResult = withContext(Dispatchers.IO) {

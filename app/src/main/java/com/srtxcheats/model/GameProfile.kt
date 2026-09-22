@@ -37,7 +37,19 @@ data class GameProfile(
     val glassTransparency: Float = 0.85f, // 0% - 100%
     val glassBlur: String = "MEDIUM", // OFF, LOW, MEDIUM, HIGH
     val overlayPosX: Int = 50,
-    val overlayPosY: Int = 200
+    val overlayPosY: Int = 200,
+    val overlayTab: String = "ABOUT",
+    val sensiReductionPercent: Int = 0, // 0%, -25%, -50%, -75%, -100%
+    val markerRotateDeg: Float = 0f, // 0 - 360 degrees
+    val fireMacroEnabled: Boolean = false,
+    val fireMacroPosX: Int = 150,
+    val fireMacroPosY: Int = 350,
+    val fireMacroSizeDp: Int = 70,
+    val fireMacroColor: Long = 0xFFFF1744,
+    val fireMacroBoundaryRadius: Float = 60f,
+    val fireMacroSensX: Float = 1.0f,
+    val fireMacroSensY: Float = 1.0f,
+    val fireMacroAlpha: Float = 0.85f
 ) {
     val effectiveSensitivityPercent: Int
         get() = when {

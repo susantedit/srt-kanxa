@@ -1,5 +1,6 @@
 package com.srtxcheats.keySystem
 
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
@@ -369,24 +370,39 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Hardware Device Binding Info
-            Row(
+            // Strict Online Verification & HWID Binding Info
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0x18FFFFFF))
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .border(0.6.dp, Color(0x3300E5FF), RoundedCornerShape(8.dp))
+                    .clickable {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                        val clip = android.content.ClipData.newPlainText("HWID", hwid)
+                        clipboard?.setPrimaryClip(clip)
+                        android.widget.Toast.makeText(context, "HWID copied to clipboard", android.widget.Toast.LENGTH_SHORT).show()
+                    },
+                color = Color(0x180A101C),
+                shape = RoundedCornerShape(8.dp)
             ) {
-                Text("HWID BINDING:", color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    text = hwid,
-                    color = TextSecondary,
-                    fontSize = 9.sp,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("STRICT REAL-TIME AUTH", color = NeonCyan, fontSize = 8.5.sp, fontWeight = FontWeight.Black)
+                        Text("TAP HWID TO COPY", color = TextMuted, fontSize = 7.5.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = hwid,
+                        color = TextPrimary,
+                        fontSize = 9.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
     }

@@ -86,8 +86,10 @@ class OverlayService : Service() {
 
     private var overlayView: ComposeView? = null
     private var markerView: ComposeView? = null
+    private var fireMacroView: ComposeView? = null
     private var overlayParams: WindowManager.LayoutParams? = null
     private var markerParams: WindowManager.LayoutParams? = null
+    private var fireMacroParams: WindowManager.LayoutParams? = null
 
     private val lifecycleOwner = ServiceLifecycleOwner()
     private var isExpanded by mutableStateOf(false)
@@ -139,6 +141,7 @@ class OverlayService : Service() {
                 currentProfile = profile
                 updateOverlayWindowAttributes(profile)
                 updateMarkerOverlay(profile)
+                updateFireMacroOverlay(profile)
             }
         }
 
@@ -301,6 +304,48 @@ class OverlayService : Service() {
                             dataStoreManager.saveGlassTransparency(alpha)
                         }
                     },
+                    onSelectTab = { tab ->
+                        serviceScope.launch {
+                            dataStoreManager.saveOverlayTab(tab)
+                        }
+                    },
+                    onSensiReductionChange = { red ->
+                        serviceScope.launch {
+                            dataStoreManager.saveSensiReduction(red)
+                        }
+                    },
+                    onRestoreSensi = {
+                        serviceScope.launch {
+                            dataStoreManager.saveSensiReduction(0)
+                            sensitivityEngine.restoreOriginal()
+                        }
+                    },
+                    onRestoreDisplay = {
+                        serviceScope.launch {
+                            val backup = com.srtxcheats.display.DisplayBackupManager(this@OverlayService).getBackup()
+                            com.srtxcheats.display.DisplayCommandExecutor.restoreOriginal(backup)
+                        }
+                    },
+                    onUpdateMarkerStyle = { style ->
+                        serviceScope.launch {
+                            dataStoreManager.updateCrosshairSettings(style, currentProfile.crosshairColor, currentProfile.crosshairSizeDp)
+                        }
+                    },
+                    onUpdateMarkerColor = { color ->
+                        serviceScope.launch {
+                            dataStoreManager.updateCrosshairSettings(currentProfile.crosshairStyle, color, currentProfile.crosshairSizeDp)
+                        }
+                    },
+                    onUpdateMarkerRotate = { deg ->
+                        serviceScope.launch {
+                            dataStoreManager.saveMarkerRotate(deg)
+                        }
+                    },
+                    onToggleFireMacro = { enabled ->
+                        serviceScope.launch {
+                            dataStoreManager.saveFireMacroEnabled(enabled)
+                        }
+                    },
                     onOpenApp = {
                         val appIntent = Intent(this@OverlayService, MainActivity::class.java).apply {
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -341,7 +386,6 @@ class OverlayService : Service() {
                         WindowManager.LayoutParams.TYPE_PHONE
                     },
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                     PixelFormat.TRANSLUCENT
@@ -362,7 +406,15 @@ class OverlayService : Service() {
                             colorLong = prof.crosshairColor,
                             sizeDp = prof.crosshairSizeDp,
                             offsetX = prof.crosshairOffsetX,
-                            offsetY = prof.crosshairOffsetY
+                            offsetY = prof.crosshairOffsetY,
+                            rotateDeg = prof.markerRotateDeg,
+                            onDragDelta = { dx, dy ->
+                                val newX = (prof.crosshairOffsetX + dx.toInt()).coerceIn(-500, 500)
+                                val newY = (prof.crosshairOffsetY + dy.toInt()).coerceIn(-500, 500)
+                                serviceScope.launch {
+                                    dataStoreManager.saveCrosshairOffset(newX, newY)
+                                }
+                            }
                         )
                     }
                 }
@@ -377,6 +429,105 @@ class OverlayService : Service() {
                     windowManager.removeView(view)
                 } catch (_: Exception) {}
                 markerView = null
+            }
+        }
+    }
+
+    private fun updateFireMacroOverlay(profile: GameProfile) {
+        if (profile.fireMacroEnabled) {
+            if (fireMacroView == null) {
+                val params = WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                    } else {
+                        @Suppress("DEPRECATION")
+                        WindowManager.LayoutParams.TYPE_PHONE
+                    },
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                    PixelFormat.TRANSLUCENT
+                ).apply {
+                    gravity = Gravity.TOP or Gravity.START
+                    x = profile.fireMacroPosX
+                    y = profile.fireMacroPosY
+                }
+                fireMacroParams = params
+
+                val view = ComposeView(this).apply {
+                    setViewTreeLifecycleOwner(lifecycleOwner)
+                    setViewTreeViewModelStoreOwner(lifecycleOwner)
+                    setViewTreeSavedStateRegistryOwner(lifecycleOwner)
+
+                    setContent {
+                        val prof = currentProfile
+                        com.srtxcheats.ui.overlay.FireMacroOverlay(
+                            profile = prof,
+                            onDragDelta = { dx, dy ->
+                                params.x = (params.x + dx.toInt()).coerceAtLeast(0)
+                                params.y = (params.y + dy.toInt()).coerceAtLeast(0)
+                                try {
+                                    windowManager.updateViewLayout(this, params)
+                                } catch (_: Exception) {}
+                                serviceScope.launch {
+                                    dataStoreManager.saveFireMacroPosition(params.x, params.y)
+                                }
+                            },
+                            onToggleActive = { active ->
+                                serviceScope.launch {
+                                    dataStoreManager.saveFireMacroEnabled(active)
+                                }
+                            },
+                            onUpdateSize = { size ->
+                                serviceScope.launch {
+                                    dataStoreManager.saveFireMacroSize(size)
+                                }
+                            },
+                            onUpdateColor = { color ->
+                                serviceScope.launch {
+                                    dataStoreManager.saveFireMacroColor(color)
+                                }
+                            },
+                            onUpdateBoundaryRadius = { rad ->
+                                serviceScope.launch {
+                                    dataStoreManager.saveFireMacroBoundaryRadius(rad)
+                                }
+                            },
+                            onUpdateSensX = { sx ->
+                                serviceScope.launch {
+                                    dataStoreManager.saveFireMacroSensX(sx)
+                                }
+                            },
+                            onUpdateSensY = { sy ->
+                                serviceScope.launch {
+                                    dataStoreManager.saveFireMacroSensY(sy)
+                                }
+                            },
+                            onUpdateAlpha = { a ->
+                                serviceScope.launch {
+                                    dataStoreManager.saveFireMacroAlpha(a)
+                                }
+                            },
+                            onClose = {
+                                serviceScope.launch {
+                                    dataStoreManager.saveFireMacroEnabled(false)
+                                }
+                            }
+                        )
+                    }
+                }
+                fireMacroView = view
+                try {
+                    windowManager.addView(view, params)
+                } catch (_: Exception) {}
+            }
+        } else {
+            fireMacroView?.let { view ->
+                try {
+                    windowManager.removeView(view)
+                } catch (_: Exception) {}
+                fireMacroView = null
             }
         }
     }
@@ -452,6 +603,13 @@ class OverlayService : Service() {
                 windowManager.removeView(it)
             } catch (_: Exception) {}
             markerView = null
+        }
+
+        fireMacroView?.let {
+            try {
+                windowManager.removeView(it)
+            } catch (_: Exception) {}
+            fireMacroView = null
         }
 
         performanceMonitor.stopMonitoring()
