@@ -4,6 +4,13 @@ A production-ready Android Game Assistant and FPS Performance Panel built with K
 
 ---
 
+## 📥 Download Ready-to-Install APK
+- **Latest Successful Build**: [GitHub Actions Run 35814424064](https://github.com/susantedit/srt-kanxa/actions/runs/35814424064)
+- **Artifact**: **SRT-X-CHEATS-Debug-APK** (34.5 MB)
+- Click the run link above, scroll to **Artifacts** at the bottom, and click `SRT-X-CHEATS-Debug-APK` to download `app-debug.apk`.
+
+---
+
 ## 🚀 Key Features
 
 ### 1. 360° Signal Radar Scanner & Smart Dual SIM Switch
