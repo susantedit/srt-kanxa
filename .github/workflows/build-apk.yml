@@ -9,6 +9,9 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Build SRT X CHEATS APK
@@ -66,3 +69,13 @@ jobs:
           name: gradle-build-log
           path: build.log
           retention-days: 7
+
+      - name: Push Error Log Branch on Failure
+        if: failure()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B build-error-log
+          git add -f build.log
+          git commit -m "ci: capture build error log" || true
+          git push origin build-error-log --force || true
