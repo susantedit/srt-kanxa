@@ -36,21 +36,33 @@ jobs:
           chmod +x ./gradlew
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        run: |
+          set +e
+          ./gradlew assembleDebug --stacktrace > build.log 2>&1
+          BUILD_EXIT_CODE=$?
+          if [ $BUILD_EXIT_CODE -ne 0 ]; then
+            echo "## ❌ Build Failed with Exit Code $BUILD_EXIT_CODE" >> $GITHUB_STEP_SUMMARY
+            echo '```text' >> $GITHUB_STEP_SUMMARY
+            tail -n 80 build.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat build.log | tail -n 80
+            exit $BUILD_EXIT_CODE
+          else
+            echo "## ✅ Debug APK Built Successfully" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Upload Debug APK Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: SRT-X-CHEATS-Debug-APK
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 30
 
-      - name: Upload Failure Logs
-        if: failure()
+      - name: Upload Build Log
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-failure-reports
-          path: |
-            app/build/reports/
-            **/hs_err_pid*.log
+          name: gradle-build-log
+          path: build.log
           retention-days: 7
