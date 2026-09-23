@@ -818,9 +818,10 @@ fun MainDashboardScreen(
         val dualSimManager = remember { DualSimManager(context) }
         val networkBooster = remember { NetworkBooster(context) }
 
-        var isFocusActive by remember { mutableStateOf(focusModeManager.isFocusModeActive()) }
-        val isRecording by screenCaptureManager.isRecording.collectAsState()
-        val recordDuration by screenCaptureManager.recordingDurationSec.collectAsState()
+        val focusState by focusModeManager.focusState.collectAsState()
+        val captureState by screenCaptureManager.captureState.collectAsState()
+        val isRecording = captureState.isRecording
+        val recordDuration = captureState.recordingDurationSec
         var cleanStatus by remember { mutableStateOf<String?>(null) }
         var isCleaning by remember { mutableStateOf(false) }
 
@@ -942,17 +943,15 @@ fun MainDashboardScreen(
                     }
 
                     Switch(
-                        checked = isFocusActive,
+                        checked = focusState.isFocusModeActive,
                         onCheckedChange = { enable ->
                             if (enable) {
                                 val ok = focusModeManager.enableFocusMode()
                                 if (!ok && !focusModeManager.hasDndPermission()) {
-                                    focusModeManager.requestDndPermission()
+                                    focusModeManager.openDndSettings()
                                 }
-                                isFocusActive = focusModeManager.isFocusModeActive()
                             } else {
                                 focusModeManager.disableFocusMode()
-                                isFocusActive = false
                             }
                         },
                         colors = SwitchDefaults.colors(
@@ -976,7 +975,7 @@ fun MainDashboardScreen(
                                 isCleaning = true
                                 coroutineScope.launch {
                                     val res = systemCleaner.cleanAll()
-                                    cleanStatus = "Freed ${res.freedRamMb}MB (${res.killedProcesses} tasks killed)"
+                                    cleanStatus = "Freed ${res.freedRamMb}MB (${res.killedProcessesCount} tasks killed)"
                                     isCleaning = false
                                     Toast.makeText(context, cleanStatus ?: "Cleaned!", Toast.LENGTH_SHORT).show()
                                 }
@@ -1003,14 +1002,11 @@ fun MainDashboardScreen(
                     Button(
                         onClick = {
                             coroutineScope.launch {
-                                val res = screenCaptureManager.takeScreenshot()
-                                when (res) {
-                                    is ScreenCaptureManager.CaptureResult.Success -> {
-                                        Toast.makeText(context, "Screenshot saved to Gallery!", Toast.LENGTH_SHORT).show()
-                                    }
-                                    is ScreenCaptureManager.CaptureResult.Error -> {
-                                        Toast.makeText(context, res.message, Toast.LENGTH_SHORT).show()
-                                    }
+                                val path = screenCaptureManager.captureScreenshot()
+                                if (path != null) {
+                                    Toast.makeText(context, "Screenshot saved to Gallery!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Screenshot requires Shizuku/Root authorization", Toast.LENGTH_SHORT).show()
                                 }
                             }
                         },
@@ -1031,19 +1027,16 @@ fun MainDashboardScreen(
                         onClick = {
                             coroutineScope.launch {
                                 if (isRecording) {
-                                    val res = screenCaptureManager.stopRecording()
-                                    when (res) {
-                                        is ScreenCaptureManager.CaptureResult.Success -> {
-                                            Toast.makeText(context, "Saved 60fps recording to Movies!", Toast.LENGTH_LONG).show()
-                                        }
-                                        is ScreenCaptureManager.CaptureResult.Error -> {
-                                            Toast.makeText(context, res.message, Toast.LENGTH_SHORT).show()
-                                        }
+                                    val path = screenCaptureManager.stopRecording()
+                                    if (path != null) {
+                                        Toast.makeText(context, "Saved recording to Movies!", Toast.LENGTH_LONG).show()
+                                    } else {
+                                        Toast.makeText(context, "Recording stopped", Toast.LENGTH_SHORT).show()
                                     }
                                 } else {
-                                    val res = screenCaptureManager.startRecording(bitRateMbps = 16)
-                                    if (res is ScreenCaptureManager.CaptureResult.Error) {
-                                        Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
+                                    val started = screenCaptureManager.startRecording()
+                                    if (!started) {
+                                        Toast.makeText(context, "Recording requires Shizuku/Root authorization", Toast.LENGTH_LONG).show()
                                     }
                                 }
                             }
@@ -1663,7 +1656,7 @@ fun MainDashboardScreen(
                     modifier = Modifier.testTag("ram_boost_button")
                 ) {
                     Icon(
-                        imageVector = Icons.Default.CleaningServices,
+                        imageVector = Icons.Default.Bolt,
                         contentDescription = null,
                         tint = Color.Black,
                         modifier = Modifier.size(16.dp)

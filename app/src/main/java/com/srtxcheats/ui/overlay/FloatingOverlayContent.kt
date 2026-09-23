@@ -1323,9 +1323,9 @@ fun LargeLiquidGlassMenu(
                                                 .clickable {
                                                     coroutineScope.launch {
                                                         val backup = displayBackupManager.getBackup()
-                                                        val baseW = if (backup.physicalWidth > 0) backup.physicalWidth else 1080
-                                                        val baseH = if (backup.physicalHeight > 0) backup.physicalHeight else 2400
-                                                        val baseDpi = if (backup.physicalDensity > 0) backup.physicalDensity else 440
+                                                        val baseW = if (backup.originalWidth > 0) backup.originalWidth else 1080
+                                                        val baseH = if (backup.originalHeight > 0) backup.originalHeight else 2400
+                                                        val baseDpi = if (backup.originalDensity > 0) backup.originalDensity else 440
                                                         val targetW = ((baseW * scaleW).toInt() / 2) * 2
                                                         val targetH = ((baseH * scaleW).toInt() / 2) * 2
                                                         val targetDpi = (baseDpi * scaleDpi).toInt().coerceIn(160, 640)

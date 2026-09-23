@@ -389,7 +389,7 @@ class SensitivityEngine(private val context: Context) {
             try {
                 android.provider.Settings.System.putInt(
                     context.contentResolver,
-                    android.provider.Settings.System.POINTER_SPEED,
+                    "pointer_speed",
                     targetPointer
                 )
             } catch (_: Exception) {}
@@ -469,7 +469,7 @@ class SensitivityEngine(private val context: Context) {
             try {
                 android.provider.Settings.System.putInt(
                     context.contentResolver,
-                    android.provider.Settings.System.POINTER_SPEED,
+                    "pointer_speed",
                     targetPointer
                 )
             } catch (_: Exception) {}
@@ -527,7 +527,7 @@ class SensitivityEngine(private val context: Context) {
             try {
                 android.provider.Settings.System.putInt(
                     context.contentResolver,
-                    android.provider.Settings.System.POINTER_SPEED,
+                    "pointer_speed",
                     7
                 )
             } catch (_: Exception) {}
