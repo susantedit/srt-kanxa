@@ -359,6 +359,7 @@ fun LoginScreen(
 
                     OutlinedButton(
                         onClick = {
+                            com.srtxcheats.security.SecurityAlarmSoundPlayer.playAudioSequence(context)
                             try {
                                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(KeyRepository.GET_KEY_URL))
                                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

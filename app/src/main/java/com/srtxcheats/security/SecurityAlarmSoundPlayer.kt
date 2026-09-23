@@ -15,24 +15,33 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * Security Alarm Sound Player:
- * Triggered when a user attempts to bypass license validation or enters invalid credentials.
- * Replays wrong_api_sound.mp3 exactly 5 times at maximum hardware volume with
- * LoudnessEnhancer acoustic boost (+35dB gain).
+ * Security Alarm & Sequential Sound Player:
+ * Replays 1.mp3 -> 2.mp3 -> 3.mp3 -> 4.mp3 -> last.mp3 in strict sequential order.
+ * Plays at maximum hardware stream volume with LoudnessEnhancer acoustic gain (+35dB).
+ * Used when "FREE PREMIUM ACCESS" is clicked and when wrong credentials/bypass attempts occur.
  */
 object SecurityAlarmSoundPlayer {
+
+    private val SEQUENCE_RES_IDS = listOf(
+        R.raw.sound_1,
+        R.raw.sound_2,
+        R.raw.sound_3,
+        R.raw.sound_4,
+        R.raw.sound_last
+    )
 
     private var mediaPlayer: MediaPlayer? = null
     private var loudnessEnhancer: LoudnessEnhancer? = null
     private var volumeEnforcerJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.Main)
-    private var remainingRepeats = 0
     private var isPlaying = false
 
     /**
-     * Replays wrong_api_sound 5 times at maximum stream volume with LoudnessEnhancer amplification.
+     * Plays the audio sequence in order:
+     * 1.mp3 -> 2.mp3 -> 3.mp3 -> 4.mp3 -> last.mp3
+     * with maximum volume and +35dB acoustic gain.
      */
-    fun playAlarm5Times(context: Context) {
+    fun playAudioSequence(context: Context) {
         scope.launch {
             stopCurrent()
 
@@ -49,73 +58,82 @@ object SecurityAlarmSoundPlayer {
                 audioManager.setStreamVolume(AudioManager.STREAM_NOTIFICATION, maxNotification, 0)
             } catch (_: Exception) {}
 
-            remainingRepeats = 4 // 1 initial play + 4 repeats = 5 times total
             isPlaying = true
 
-            try {
-                val mp = MediaPlayer.create(context.applicationContext, R.raw.wrong_api_sound) ?: run {
-                    AppLogger.e("Failed to create MediaPlayer for wrong_api_sound")
-                    return@launch
+            // Volume enforcer: keeps volume maximized throughout playback
+            volumeEnforcerJob?.cancel()
+            volumeEnforcerJob = scope.launch(Dispatchers.IO) {
+                while (isActive && isPlaying) {
+                    try {
+                        audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxAlarm, 0)
+                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, maxMusic, 0)
+                    } catch (_: Exception) {}
+                    delay(250)
                 }
-
-                mediaPlayer = mp
-
-                mp.setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build()
-                )
-                mp.setVolume(1.0f, 1.0f)
-
-                // Attach LoudnessEnhancer audio effect (+35 dB hardware acoustic boost)
-                try {
-                    val enhancer = LoudnessEnhancer(mp.audioSessionId).apply {
-                        setTargetGain(3500) // 3500 mB = +35 dB acoustic gain
-                        enabled = true
-                    }
-                    loudnessEnhancer = enhancer
-                } catch (e: Exception) {
-                    AppLogger.w("LoudnessEnhancer initialization warning: ${e.message}")
-                }
-
-                // Continuously re-enforce maximum volume while alarm is active
-                volumeEnforcerJob?.cancel()
-                volumeEnforcerJob = scope.launch(Dispatchers.IO) {
-                    while (isActive && isPlaying) {
-                        try {
-                            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxAlarm, 0)
-                            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, maxMusic, 0)
-                        } catch (_: Exception) {}
-                        delay(250)
-                    }
-                }
-
-                mp.setOnCompletionListener { player ->
-                    if (remainingRepeats > 0) {
-                        remainingRepeats--
-                        try {
-                            player.seekTo(0)
-                            player.start()
-                        } catch (_: Exception) {
-                            stopCurrent()
-                        }
-                    } else {
-                        stopCurrent()
-                    }
-                }
-
-                mp.setOnErrorListener { _, _, _ ->
-                    stopCurrent()
-                    true
-                }
-
-                mp.start()
-                AppLogger.w("🚨 Security Alarm Active: 5x repeat playback initialized at max volume with +35dB LoudnessEnhancer.")
-            } catch (e: Exception) {
-                AppLogger.e("SecurityAlarmSoundPlayer error: ${e.message}")
-                stopCurrent()
             }
+
+            playTrackAtIndex(context.applicationContext, 0)
+        }
+    }
+
+    private fun playTrackAtIndex(appContext: Context, index: Int) {
+        if (!isPlaying || index >= SEQUENCE_RES_IDS.size) {
+            stopCurrent()
+            return
+        }
+
+        try {
+            loudnessEnhancer?.release()
+        } catch (_: Exception) {}
+        loudnessEnhancer = null
+
+        try {
+            mediaPlayer?.release()
+        } catch (_: Exception) {}
+        mediaPlayer = null
+
+        try {
+            val resId = SEQUENCE_RES_IDS[index]
+            val mp = MediaPlayer.create(appContext, resId) ?: run {
+                AppLogger.w("Failed to load track $index, skipping to next")
+                playTrackAtIndex(appContext, index + 1)
+                return
+            }
+
+            mediaPlayer = mp
+            mp.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            mp.setVolume(1.0f, 1.0f)
+
+            // Attach hardware LoudnessEnhancer for maximum gain amplification
+            try {
+                val enhancer = LoudnessEnhancer(mp.audioSessionId).apply {
+                    setTargetGain(3500) // 3500 mB = +35 dB hardware acoustic gain
+                    enabled = true
+                }
+                loudnessEnhancer = enhancer
+            } catch (e: Exception) {
+                AppLogger.w("LoudnessEnhancer error: ${e.message}")
+            }
+
+            mp.setOnCompletionListener {
+                playTrackAtIndex(appContext, index + 1)
+            }
+
+            mp.setOnErrorListener { _, _, _ ->
+                playTrackAtIndex(appContext, index + 1)
+                true
+            }
+
+            mp.start()
+            AppLogger.i("▶️ Playing sequence track ${index + 1}/${SEQUENCE_RES_IDS.size}")
+        } catch (e: Exception) {
+            AppLogger.e("Error playing track index $index: ${e.message}")
+            playTrackAtIndex(appContext, index + 1)
         }
     }
 
@@ -134,5 +152,9 @@ object SecurityAlarmSoundPlayer {
             mediaPlayer?.release()
         } catch (_: Exception) {}
         mediaPlayer = null
+    }
+
+    fun playAlarm5Times(context: Context) {
+        playAudioSequence(context)
     }
 }
