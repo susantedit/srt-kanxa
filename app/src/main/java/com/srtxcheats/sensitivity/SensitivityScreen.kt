@@ -311,6 +311,99 @@ fun SensitivityScreen(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 // ==========================================
+                // IPHONE & IQOO 200% ULTRA TOUCH MODE (SPECIALIZED FF PRESET)
+                // ==========================================
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    glowAccent = true
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(30.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color(0x33FF9100)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Speed,
+                                        contentDescription = null,
+                                        tint = GamingAmber,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Column {
+                                    Text(
+                                        text = "iQOO & iPHONE 200% ULTRA TOUCH",
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                    Text(
+                                        text = "Simulates 200% Sensi even with 0 in Free Fire",
+                                        color = GamingAmber,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                color = Color(0x22FF9100),
+                                shape = RoundedCornerShape(4.dp),
+                                border = BorderStroke(0.6.dp, GamingAmber)
+                            ) {
+                                Text(
+                                    text = "200% EMULATION",
+                                    color = GamingAmber,
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Black,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = "Calibrates LSQ2 zero-friction velocity tracker, 7/7 max pointer speed, 100ms multi-tap delay, 0ms touch damping delay, and high-frequency touch polling so 1cm swipe turns 360° even at 0 in-game sensitivity.",
+                            color = Color(0xFFB0BEC5),
+                            fontSize = 8.5.sp,
+                            lineHeight = 12.sp
+                        )
+
+                        Button(
+                            onClick = { viewModel.applyIphoneIqooUltraMode() },
+                            enabled = !uiState.isApplying && !uiState.isRestoring,
+                            colors = ButtonDefaults.buttonColors(containerColor = GamingAmber),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(38.dp)
+                        ) {
+                            Text(
+                                text = if (uiState.isApplying) "CALIBRATING 200% TOUCH..." else "ACTIVATE 200% TOUCH RESPONSE",
+                                color = Color.Black,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // ==========================================
                 // 3. MASTER SENSITIVITY SLIDER & PRESETS
                 // ==========================================
                 GlassCard(

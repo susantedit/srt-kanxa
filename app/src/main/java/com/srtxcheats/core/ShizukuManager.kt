@@ -103,14 +103,27 @@ object ShizukuManager {
         }
     }
 
-    fun isAuthorized(): Boolean {
+    fun isRootAvailable(): Boolean {
         return try {
-            if (!Shizuku.pingBinder()) return false
-            if (Shizuku.isPreV11()) return false
-            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+            val process = Runtime.getRuntime().exec(arrayOf("which", "su"))
+            val exitCode = process.waitFor()
+            exitCode == 0
         } catch (_: Throwable) {
             false
         }
+    }
+
+    fun isAuthorized(): Boolean {
+        val shizukuAuth = try {
+            if (Shizuku.pingBinder() && !Shizuku.isPreV11()) {
+                Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+            } else {
+                false
+            }
+        } catch (_: Throwable) {
+            false
+        }
+        return shizukuAuth || isRootAvailable()
     }
 
     fun requestPermission(requestCode: Int = 1001) {
@@ -144,30 +157,50 @@ object ShizukuManager {
     }
 
     /**
-     * Safely executes an authorized command using Shizuku.newProcess.
+     * Safely executes an authorized command using Shizuku or root process fallback.
      * Never crashes if unauthorized or unsupported.
      */
     suspend fun executeCommand(command: String): CommandResult = withContext(Dispatchers.IO) {
-        if (!isAuthorized()) {
-            return@withContext CommandResult(-1, "", "Shizuku not authorized or not running")
+        // 1. Try Shizuku binder execution
+        val hasShizuku = try {
+            Shizuku.pingBinder() && !Shizuku.isPreV11() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+        } catch (_: Throwable) {
+            false
         }
 
-        try {
-            val method = Shizuku::class.java.getDeclaredMethod(
-                "newProcess",
-                Array<String>::class.java,
-                Array<String>::class.java,
-                String::class.java
-            )
-            method.isAccessible = true
-            val process = method.invoke(null, arrayOf("sh", "-c", command), null, null) as java.lang.Process
-            val output = BufferedReader(InputStreamReader(process.inputStream)).use { it.readText().trim() }
-            val error = BufferedReader(InputStreamReader(process.errorStream)).use { it.readText().trim() }
-            val exitCode = process.waitFor()
-            CommandResult(exitCode, output, error)
-        } catch (e: Throwable) {
-            CommandResult(-1, "", e.message ?: "Operation not supported on this device")
+        if (hasShizuku) {
+            try {
+                val method = Shizuku::class.java.getDeclaredMethod(
+                    "newProcess",
+                    Array<String>::class.java,
+                    Array<String>::class.java,
+                    String::class.java
+                )
+                method.isAccessible = true
+                val process = method.invoke(null, arrayOf("sh", "-c", command), null, null) as java.lang.Process
+                val output = BufferedReader(InputStreamReader(process.inputStream)).use { it.readText().trim() }
+                val error = BufferedReader(InputStreamReader(process.errorStream)).use { it.readText().trim() }
+                val exitCode = process.waitFor()
+                return@withContext CommandResult(exitCode, output, error)
+            } catch (_: Throwable) {
+                // Fall through to root fallback
+            }
         }
+
+        // 2. Fallback to Root (su) execution if present on the Android OS
+        if (isRootAvailable()) {
+            try {
+                val process = Runtime.getRuntime().exec(arrayOf("su", "-c", command))
+                val output = BufferedReader(InputStreamReader(process.inputStream)).use { it.readText().trim() }
+                val error = BufferedReader(InputStreamReader(process.errorStream)).use { it.readText().trim() }
+                val exitCode = process.waitFor()
+                return@withContext CommandResult(exitCode, output, error)
+            } catch (e: Throwable) {
+                return@withContext CommandResult(-1, "", e.message ?: "Root execution failed")
+            }
+        }
+
+        CommandResult(-1, "", "Neither Shizuku nor Root is authorized on this system")
     }
 
     /**

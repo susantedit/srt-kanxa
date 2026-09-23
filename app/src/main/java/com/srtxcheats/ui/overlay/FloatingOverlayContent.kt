@@ -37,14 +37,20 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.GpsFixed
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.CompassCalibration
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Launch
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.SimCard
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
@@ -55,6 +61,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -76,7 +83,14 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.srtxcheats.core.DualSimManager
+import com.srtxcheats.core.GameFocusModeManager
+import com.srtxcheats.core.NetworkBooster
+import com.srtxcheats.core.ScreenCaptureManager
 import com.srtxcheats.core.ShizukuManager
+import com.srtxcheats.core.SignalRadarScanner
+import com.srtxcheats.core.SystemCleaner
+import com.srtxcheats.ui.screens.RadarCanvasHUD
 import com.srtxcheats.display.DisplayBackupManager
 import com.srtxcheats.display.DisplayCommandExecutor
 import com.srtxcheats.display.DisplayExecutionResult
@@ -108,6 +122,8 @@ fun FloatingOverlayContent(
     onToggleGraph: () -> Unit = {},
     onToggleCrosshair: () -> Unit = {},
     onUpdateCrosshairOffset: (Int, Int) -> Unit = { _, _ -> },
+    onUpdateCrosshairSize: (Int) -> Unit = {},
+    onUpdateCrosshairSettings: (String, Long, Int) -> Unit = { _, _, _ -> },
     onUpdateMenuSize: (Float) -> Unit = {},
     onUpdateTransparency: (Float) -> Unit = {},
     onSelectTab: (String) -> Unit = {},
@@ -118,6 +134,12 @@ fun FloatingOverlayContent(
     onUpdateMarkerColor: (Long) -> Unit = {},
     onUpdateMarkerRotate: (Float) -> Unit = {},
     onToggleFireMacro: (Boolean) -> Unit = {},
+    focusModeManager: GameFocusModeManager? = null,
+    screenCaptureManager: ScreenCaptureManager? = null,
+    systemCleaner: SystemCleaner? = null,
+    dualSimManager: DualSimManager? = null,
+    radarScanner: SignalRadarScanner? = null,
+    networkBooster: NetworkBooster? = null,
     onOpenApp: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -156,6 +178,8 @@ fun FloatingOverlayContent(
                 onSensitivityChange = onSensitivityChange,
                 onSensitivityPercentChange = onSensitivityPercentChange,
                 onUpdateCrosshairOffset = onUpdateCrosshairOffset,
+                onUpdateCrosshairSize = onUpdateCrosshairSize,
+                onUpdateCrosshairSettings = onUpdateCrosshairSettings,
                 onToggleRamBoost = onToggleRamBoost,
                 onToggleGameBoost = onToggleGameBoost,
                 onToggleMetric = onToggleMetric,
@@ -171,6 +195,12 @@ fun FloatingOverlayContent(
                 onUpdateMarkerColor = onUpdateMarkerColor,
                 onUpdateMarkerRotate = onUpdateMarkerRotate,
                 onToggleFireMacro = onToggleFireMacro,
+                focusModeManager = focusModeManager,
+                screenCaptureManager = screenCaptureManager,
+                systemCleaner = systemCleaner,
+                dualSimManager = dualSimManager,
+                radarScanner = radarScanner,
+                networkBooster = networkBooster,
                 onOpenApp = onOpenApp
             )
         }
@@ -268,6 +298,8 @@ fun LargeLiquidGlassMenu(
     onSensitivityChange: (SensitivityLevel) -> Unit = {},
     onSensitivityPercentChange: (Int) -> Unit = {},
     onUpdateCrosshairOffset: (Int, Int) -> Unit = { _, _ -> },
+    onUpdateCrosshairSize: (Int) -> Unit = {},
+    onUpdateCrosshairSettings: (String, Long, Int) -> Unit = { _, _, _ -> },
     onToggleRamBoost: () -> Unit = {},
     onToggleGameBoost: () -> Unit = {},
     onToggleMetric: (String) -> Unit = {},
@@ -283,12 +315,24 @@ fun LargeLiquidGlassMenu(
     onUpdateMarkerColor: (Long) -> Unit = {},
     onUpdateMarkerRotate: (Float) -> Unit = {},
     onToggleFireMacro: (Boolean) -> Unit = {},
+    focusModeManager: GameFocusModeManager? = null,
+    screenCaptureManager: ScreenCaptureManager? = null,
+    systemCleaner: SystemCleaner? = null,
+    dualSimManager: DualSimManager? = null,
+    radarScanner: SignalRadarScanner? = null,
+    networkBooster: NetworkBooster? = null,
     onOpenApp: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val displayBackupManager = remember { DisplayBackupManager(context) }
     val sensitivityEngine = remember { SensitivityEngine(context) }
+    val focusMgr = focusModeManager ?: remember { GameFocusModeManager(context) }
+    val captureMgr = screenCaptureManager ?: remember { ScreenCaptureManager(context) }
+    val cleaner = systemCleaner ?: remember { SystemCleaner(context) }
+    val dualSimMgr = dualSimManager ?: remember { DualSimManager(context) }
+    val radarScan = radarScanner ?: remember { SignalRadarScanner(context) }
+    val booster = networkBooster ?: remember { NetworkBooster(context) }
 
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp.dp
@@ -422,27 +466,29 @@ fun LargeLiquidGlassMenu(
             }
 
             // ==========================================
-            // 2. TAB NAVIGATION: ABOUT | SENSI | STRETCH | MARKER
+            // 2. TAB NAVIGATION: ASSIST | RADAR | MARKER | ABOUT | SENSI | STRETCH
             // ==========================================
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color(0x18000000))
+                    .horizontalScroll(rememberScrollState())
                     .padding(horizontal = 6.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 val tabs = listOf(
+                    "ASSIST" to "Assist",
+                    "RADAR" to "Radar",
+                    "MARKER" to "Aim",
                     "ABOUT" to "About",
                     "SENSI" to "Sensi",
-                    "STRETCH" to "Stretch",
-                    "MARKER" to "Marker"
+                    "STRETCH" to "Stretch"
                 )
 
                 tabs.forEach { (tabKey, tabLabel) ->
                     val isSelected = activeTab.equals(tabKey, ignoreCase = true)
                     Box(
                         modifier = Modifier
-                            .weight(1f)
                             .clip(RoundedCornerShape(6.dp))
                             .background(if (isSelected) Color(0xFF00E5FF) else Color(0x201E293B))
                             .border(0.6.dp, if (isSelected) Color(0xFF00E5FF) else Color(0x22FFFFFF), RoundedCornerShape(6.dp))
@@ -450,13 +496,13 @@ fun LargeLiquidGlassMenu(
                                 activeTab = tabKey
                                 onSelectTab(tabKey)
                             }
-                            .padding(vertical = 4.dp),
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = tabLabel,
                             color = if (isSelected) Color.Black else Color.White,
-                            fontSize = 9.sp,
+                            fontSize = 8.5.sp,
                             fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold
                         )
                     }
@@ -474,6 +520,467 @@ fun LargeLiquidGlassMenu(
                     .verticalScroll(rememberScrollState())
             ) {
                 when (activeTab.uppercase()) {
+                    "ASSIST" -> {
+                        // ----------------------------------------------------
+                        // ASSIST: GAME FOCUS MODE, SCREEN CAPTURE, DEEP CLEAN ALL
+                        // ----------------------------------------------------
+                        val focusState by focusMgr.focusState.collectAsState()
+                        val captureState by captureMgr.captureState.collectAsState()
+                        var cleanResultText by remember { mutableStateOf<String?>(null) }
+                        var isCleaning by remember { mutableStateOf(false) }
+
+                        // 1. GAME FOCUS MODE (DND TOTAL SILENCE)
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .border(
+                                    0.8.dp,
+                                    if (focusState.isFocusModeActive) Color(0xFFFF1744) else Color(0x3300E5FF),
+                                    RoundedCornerShape(10.dp)
+                                ),
+                            color = if (focusState.isFocusModeActive) Color(0x28FF1744) else Color(0x200A1120),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.NotificationsOff,
+                                            contentDescription = null,
+                                            tint = if (focusState.isFocusModeActive) Color(0xFFFF5252) else Color(0xFF00E5FF),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Column {
+                                            Text(
+                                                text = "GAME FOCUS MODE",
+                                                color = Color.White,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Black
+                                            )
+                                            Text(
+                                                text = if (focusState.isFocusModeActive) "TOTAL SILENCE: Zero Calls/Alerts" else "Calls & Alerts Allowed",
+                                                color = if (focusState.isFocusModeActive) Color(0xFFFF8A80) else Color(0xFF90A4AE),
+                                                fontSize = 7.5.sp
+                                            )
+                                        }
+                                    }
+
+                                    Switch(
+                                        checked = focusState.isFocusModeActive,
+                                        onCheckedChange = {
+                                            val active = focusMgr.toggleFocusMode()
+                                            if (active) {
+                                                Toast.makeText(context, "Game Focus Mode: Total Silence Active!", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                Toast.makeText(context, "Notifications Restored", Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = Color.Black,
+                                            checkedTrackColor = Color(0xFFFF1744),
+                                            uncheckedThumbColor = Color.Gray,
+                                            uncheckedTrackColor = Color(0x33FFFFFF)
+                                        ),
+                                        modifier = Modifier.size(34.dp, 20.dp)
+                                    )
+                                }
+
+                                if (!focusState.hasDndPermission) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "⚠️ Tap switch to grant DND Notification Policy access",
+                                        color = Color(0xFFFFD54F),
+                                        fontSize = 7.5.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // 2. SCREENSHOT & SCREEN RECORDING BUTTONS
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .border(0.8.dp, Color(0x3300E5FF), RoundedCornerShape(10.dp)),
+                            color = Color(0x200A1120),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(8.dp)) {
+                                Text(
+                                    text = "GAMEPLAY MEDIA RECORDER",
+                                    color = Color(0xFFB0BEC5),
+                                    fontSize = 8.5.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    // Screenshot Button
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(Color(0x2200E5FF))
+                                            .border(0.6.dp, Color(0xFF00E5FF), RoundedCornerShape(6.dp))
+                                            .clickable {
+                                                coroutineScope.launch {
+                                                    val path = captureMgr.captureScreenshot()
+                                                    if (path != null) {
+                                                        Toast.makeText(context, "Screenshot saved to Pictures/SRT_Screenshots!", Toast.LENGTH_SHORT).show()
+                                                    } else {
+                                                        Toast.makeText(context, captureState.statusMessage, Toast.LENGTH_LONG).show()
+                                                    }
+                                                }
+                                            }
+                                            .padding(vertical = 7.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Icon(Icons.Default.CameraAlt, contentDescription = null, tint = Color(0xFF00E5FF), modifier = Modifier.size(13.dp))
+                                            Text(
+                                                text = "SCREENSHOT",
+                                                color = Color(0xFF00E5FF),
+                                                fontSize = 8.sp,
+                                                fontWeight = FontWeight.Black
+                                            )
+                                        }
+                                    }
+
+                                    // Screen Record Button
+                                    val isRec = captureState.isRecording
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (isRec) Color(0x33FF1744) else Color(0x221E293B))
+                                            .border(0.6.dp, if (isRec) Color(0xFFFF1744) else Color(0x33FFFFFF), RoundedCornerShape(6.dp))
+                                            .clickable {
+                                                coroutineScope.launch {
+                                                    if (isRec) {
+                                                        captureMgr.stopRecording()
+                                                        Toast.makeText(context, "Recording saved: Movies/SRT_Recordings", Toast.LENGTH_SHORT).show()
+                                                    } else {
+                                                        val ok = captureMgr.startRecording()
+                                                        if (ok) {
+                                                            Toast.makeText(context, "Recording started at 16Mbps!", Toast.LENGTH_SHORT).show()
+                                                        } else {
+                                                            Toast.makeText(context, captureState.statusMessage, Toast.LENGTH_LONG).show()
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            .padding(vertical = 7.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(7.dp)
+                                                    .clip(CircleShape)
+                                                    .background(if (isRec) Color(0xFFFF1744) else Color.White)
+                                            )
+                                            Text(
+                                                text = if (isRec) "STOP (${captureState.recordingDurationSec}s)" else "RECORD 16M",
+                                                color = if (isRec) Color(0xFFFF5252) else Color.White,
+                                                fontSize = 8.sp,
+                                                fontWeight = FontWeight.Black
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // 3. DEEP CLEAN ALL (RAM & CACHES)
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .border(0.8.dp, Color(0x3300E676), RoundedCornerShape(10.dp)),
+                            color = Color(0x200A1120),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = "CLEAN ALL (RAM & CACHE)",
+                                            color = Color(0xFF00E676),
+                                            fontSize = 8.5.sp,
+                                            fontWeight = FontWeight.Black
+                                        )
+                                        Text(
+                                            text = "Kills background tasks & trims cache",
+                                            color = Color(0xFF90A4AE),
+                                            fontSize = 7.5.sp
+                                        )
+                                    }
+
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(Color(0xFF00E676))
+                                            .clickable(enabled = !isCleaning) {
+                                                coroutineScope.launch {
+                                                    isCleaning = true
+                                                    val res = cleaner.cleanAll()
+                                                    cleanResultText = res.message
+                                                    Toast.makeText(context, res.message, Toast.LENGTH_SHORT).show()
+                                                    isCleaning = false
+                                                }
+                                            }
+                                            .padding(horizontal = 8.dp, vertical = 5.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = if (isCleaning) "CLEANING..." else "CLEAN ALL",
+                                            color = Color.Black,
+                                            fontSize = 8.sp,
+                                            fontWeight = FontWeight.Black
+                                        )
+                                    }
+                                }
+
+                                cleanResultText?.let { msg ->
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = msg,
+                                        color = Color(0xFFB9F6CA),
+                                        fontSize = 7.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    "RADAR" -> {
+                        // ----------------------------------------------------
+                        // RADAR SECTION: MINI 360 RADAR HUD, DUAL SIM & LOW LATENCY
+                        // ----------------------------------------------------
+                        val radarState by radarScan.radarState.collectAsState()
+                        val simState by dualSimMgr.simState.collectAsState()
+                        val netState by booster.networkState.collectAsState()
+
+                        LaunchedEffect(Unit) {
+                            dualSimMgr.queryDualSimStatus()
+                        }
+
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .border(0.8.dp, Color(0x3300E5FF), RoundedCornerShape(10.dp)),
+                            color = Color(0x200A1120),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "360° SIGNAL RADAR",
+                                        color = Color(0xFF00E5FF),
+                                        fontSize = 8.5.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                    Text(
+                                        text = if (radarState.isScanning) "SCANNING (${radarState.scanProgressPercent}%)" else "IDLE",
+                                        color = if (radarState.isScanning) Color(0xFF00E676) else Color(0xFF90A4AE),
+                                        fontSize = 7.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                // Mini radar canvas HUD
+                                RadarCanvasHUD(
+                                    headingDeg = radarState.currentHeadingDeg,
+                                    bestHeadingDeg = radarState.bestHeadingDeg,
+                                    currentDbm = radarState.currentSignalDbm,
+                                    bestDbm = radarState.bestSignalDbm,
+                                    sectors = radarState.sectors,
+                                    isScanning = radarState.isScanning,
+                                    modifier = Modifier.size(130.dp)
+                                )
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                Text(
+                                    text = radarState.recommendationText,
+                                    color = Color.White,
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(if (radarState.isScanning) Color(0xFFFF1744) else Color(0xFF00E5FF))
+                                        .clickable {
+                                            if (radarState.isScanning) {
+                                                radarScan.stopScan()
+                                            } else {
+                                                radarScan.startScan()
+                                            }
+                                        }
+                                        .padding(vertical = 5.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (radarState.isScanning) "STOP SCAN" else "START 360° SCAN",
+                                        color = Color.Black,
+                                        fontSize = 8.5.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // DUAL SIM SLOTS IN OVERLAY
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .border(0.8.dp, Color(0x3300E5FF), RoundedCornerShape(10.dp)),
+                            color = Color(0x200A1120),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(8.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "DUAL SIM STATUS",
+                                        color = Color(0xFFB0BEC5),
+                                        fontSize = 8.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "SWITCH SIM",
+                                        color = Color(0xFF00E5FF),
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.clickable { dualSimMgr.openMobileDataSettings() }
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                if (simState.simList.isNotEmpty()) {
+                                    simState.simList.forEach { sim ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 2.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = "${sim.displayName} (${sim.carrierName})",
+                                                color = Color.White,
+                                                fontSize = 8.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = "${sim.signalDbm} dBm",
+                                                    color = if (sim.signalDbm > -85) Color(0xFF00E676) else Color(0xFFFFD600),
+                                                    fontSize = 8.sp,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                if (sim.isDefaultData) {
+                                                    Text(
+                                                        text = "[DATA]",
+                                                        color = Color(0xFF00E676),
+                                                        fontSize = 7.5.sp,
+                                                        fontWeight = FontWeight.Black
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Text("Single SIM or detecting...", color = Color.Gray, fontSize = 7.5.sp)
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // WI-FI LOW LATENCY LOCK
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .border(0.6.dp, Color(0x33FF9100), RoundedCornerShape(8.dp)),
+                            color = Color(0x200A1120)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "LOW-LATENCY WI-FI LOCK",
+                                    color = Color.White,
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Switch(
+                                    checked = netState.isLowLatencyActive,
+                                    onCheckedChange = { active ->
+                                        if (active) booster.acquireLowLatencyLock() else booster.releaseLowLatencyLock()
+                                    },
+                                    colors = SwitchDefaults.colors(checkedThumbColor = Color.Black, checkedTrackColor = Color(0xFFFF9100)),
+                                    modifier = Modifier.size(30.dp, 16.dp)
+                                )
+                            }
+                        }
+                    }
+
                     "ABOUT" -> {
                         // ----------------------------------------------------
                         // ABOUT SECTION: SYSTEM MONITORS & FPS GRAPH
@@ -645,6 +1152,38 @@ fun LargeLiquidGlassMenu(
 
                                 Spacer(modifier = Modifier.height(8.dp))
 
+                                // iQOO & iPhone 200% Touch Ultra Mode Button
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color(0x33FF9100))
+                                        .border(0.8.dp, Color(0xFFFF9100), RoundedCornerShape(6.dp))
+                                        .clickable {
+                                            coroutineScope.launch {
+                                                val res = sensitivityEngine.applyIphoneIqooUltraMode()
+                                                Toast.makeText(context, res.message, Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                        .padding(vertical = 6.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(Icons.Default.Speed, contentDescription = null, tint = Color(0xFFFF9100), modifier = Modifier.size(13.dp))
+                                        Text(
+                                            text = "iQOO & iPHONE 200% TOUCH",
+                                            color = Color(0xFFFFB74D),
+                                            fontSize = 8.5.sp,
+                                            fontWeight = FontWeight.Black
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
                                 // Restore Sensi Button
                                 Box(
                                     modifier = Modifier
@@ -751,14 +1290,66 @@ fun LargeLiquidGlassMenu(
                                 ) {
                                     Text("Engine Status:", color = Color(0xFF78909C), fontSize = 8.5.sp)
                                     Text(
-                                        text = if (ShizukuManager.isAuthorized()) "Shizuku Active ⚡" else "No Shizuku",
+                                        text = if (ShizukuManager.isAuthorized()) "Privileged Active ⚡" else "No Root/Shizuku",
                                         color = if (ShizukuManager.isAuthorized()) Color(0xFF00E676) else Color(0xFFFF9100),
                                         fontSize = 8.5.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
 
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                Text(
+                                    text = "FAST STRETCH PRESETS",
+                                    color = Color(0xFF90A4AE),
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    listOf(
+                                        Triple("90% Stretch", 0.90f, 0.90f),
+                                        Triple("4:3 (80%)", 0.80f, 0.85f),
+                                        Triple("Ultra (75%)", 0.75f, 0.80f)
+                                    ).forEach { (label, scaleW, scaleDpi) ->
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(Color(0x2200E5FF))
+                                                .border(0.5.dp, Color(0x6600E5FF), RoundedCornerShape(4.dp))
+                                                .clickable {
+                                                    coroutineScope.launch {
+                                                        val backup = displayBackupManager.getBackup()
+                                                        val baseW = if (backup.physicalWidth > 0) backup.physicalWidth else 1080
+                                                        val baseH = if (backup.physicalHeight > 0) backup.physicalHeight else 2400
+                                                        val baseDpi = if (backup.physicalDensity > 0) backup.physicalDensity else 440
+                                                        val targetW = ((baseW * scaleW).toInt() / 2) * 2
+                                                        val targetH = ((baseH * scaleW).toInt() / 2) * 2
+                                                        val targetDpi = (baseDpi * scaleDpi).toInt().coerceIn(160, 640)
+                                                        val res = DisplayCommandExecutor.applyStretch(targetW, targetH, targetDpi, backup)
+                                                        when (res) {
+                                                            is DisplayExecutionResult.Success -> {
+                                                                Toast.makeText(context, "$label Applied: ${targetW}x${targetH}", Toast.LENGTH_SHORT).show()
+                                                            }
+                                                            is DisplayExecutionResult.Failure -> {
+                                                                Toast.makeText(context, res.error, Toast.LENGTH_SHORT).show()
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                .padding(vertical = 5.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(label, color = Color(0xFF00E5FF), fontSize = 7.5.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
 
                                 // Restore Display Button
                                 Box(
@@ -860,14 +1451,30 @@ fun LargeLiquidGlassMenu(
 
                                 Spacer(modifier = Modifier.height(6.dp))
 
-                                // Position X/Y Dynamic Coordinates Display & Nudge
-                                Text(
-                                    text = "POSITION X: ${profile.crosshairOffsetX} | Y: ${profile.crosshairOffsetY}",
-                                    color = Color(0xFF00E5FF),
-                                    fontSize = 8.5.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                // Position X/Y Dynamic Coordinates Display & Nudge & Center Reset
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "POS X: ${profile.crosshairOffsetX} | Y: ${profile.crosshairOffsetY}",
+                                        color = Color(0xFF00E5FF),
+                                        fontSize = 8.5.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(Color(0x3300E5FF))
+                                            .border(0.5.dp, Color(0xFF00E5FF), RoundedCornerShape(4.dp))
+                                            .clickable { onUpdateCrosshairOffset(0, 0) }
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text("RESET MID (0,0)", color = Color(0xFF00E5FF), fontSize = 7.5.sp, fontWeight = FontWeight.Black)
+                                    }
+                                }
                                 Spacer(modifier = Modifier.height(3.dp))
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -917,6 +1524,59 @@ fun LargeLiquidGlassMenu(
                                         }
                                     }
                                 }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                // Free Fire Tactical Presets
+                                Text("FREE FIRE AIM PRESETS", color = Color(0xFFB0BEC5), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState())
+                                        .padding(vertical = 3.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    listOf(
+                                        Triple("🎯 Drag Headshot", "FF_DRAG_HEADSHOT", 0xFF00E5FF),
+                                        Triple("🔭 AWM Sniper", "FF_SNIPER_AWM", 0xFFFF1744),
+                                        Triple("💥 Shotgun Spread", "FF_DYNAMIC_SPREAD", 0xFFFF6D00),
+                                        Triple("⚡ Cyber Assist", "FF_CYBER_ASSIST", 0xFF00E676),
+                                        Triple("Center Pip", "DOT", 0xFFFFFFFF)
+                                    ).forEach { (label, styleKey, colorVal) ->
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(Color(0x221E293B))
+                                                .border(0.6.dp, Color(colorVal), RoundedCornerShape(4.dp))
+                                                .clickable {
+                                                    onUpdateMarkerStyle(styleKey)
+                                                    onUpdateMarkerColor(colorVal)
+                                                    onUpdateCrosshairOffset(0, 0)
+                                                }
+                                                .padding(horizontal = 6.dp, vertical = 3.dp)
+                                        ) {
+                                            Text(label, color = Color(colorVal), fontSize = 7.5.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                // Crosshair Size Slider
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("CROSSHAIR SIZE", color = Color(0xFFB0BEC5), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                    Text("${profile.crosshairSizeDp} dp", color = Color(0xFF00E5FF), fontSize = 8.5.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Slider(
+                                    value = profile.crosshairSizeDp.toFloat(),
+                                    onValueChange = { onUpdateCrosshairSize(it.toInt()) },
+                                    valueRange = 12f..60f,
+                                    colors = SliderDefaults.colors(thumbColor = Color(0xFF00E5FF), activeTrackColor = Color(0xFF00E5FF)),
+                                    modifier = Modifier.fillMaxWidth().height(26.dp)
+                                )
 
                                 Spacer(modifier = Modifier.height(6.dp))
 

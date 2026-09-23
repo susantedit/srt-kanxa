@@ -22,6 +22,10 @@ import kotlin.math.sin
 
 object MarkerConstants {
     val MARKER_STYLES = listOf(
+        "FF_DRAG_HEADSHOT" to "🎯 FF Drag Headshot Aim",
+        "FF_SNIPER_AWM" to "🔭 FF AWM Quick-Scope",
+        "FF_DYNAMIC_SPREAD" to "💥 FF Shotgun Spread",
+        "FF_CYBER_ASSIST" to "⚡ FF Cyber Assist",
         "CROSS" to "Classic Cross",
         "DOT" to "Center Dot",
         "CIRCLE" to "Precision Circle",
@@ -245,6 +249,59 @@ fun ScreenMarkerOverlay(
                         drawLine(markerColor, Offset(center.x - gap, center.y), Offset(0f, center.y), strokeWidth = 1.6f)
                         drawLine(markerColor, Offset(center.x + gap, center.y), Offset(size.width, center.y), strokeWidth = 1.6f)
                         drawCircle(color = markerColor, radius = 1.2f, center = center)
+                    }
+                    "FF_DRAG_HEADSHOT" -> {
+                        // Free Fire Drag Headshot: Center precision dot, vertical drag flick ladder, and subtle brackets
+                        drawCircle(color = markerColor, radius = 2.4f, center = center)
+                        // Vertical flick trajectory ticks
+                        val tickStep = radius * 0.28f
+                        for (i in 1..3) {
+                            val y = center.y - (i * tickStep)
+                            val tickWidth = (4f - i) * 2.5f
+                            drawLine(markerColor, Offset(center.x - tickWidth, y), Offset(center.x + tickWidth, y), strokeWidth = 1.8f)
+                        }
+                        // Horizontal stabilizers
+                        drawLine(markerColor, Offset(center.x - radius * 0.7f, center.y), Offset(center.x - radius * 0.25f, center.y), strokeWidth = 2f)
+                        drawLine(markerColor, Offset(center.x + radius * 0.25f, center.y), Offset(center.x + radius * 0.7f, center.y), strokeWidth = 2f)
+                        // Lower stop mark
+                        drawLine(markerColor, Offset(center.x, center.y + radius * 0.25f), Offset(center.x, center.y + radius * 0.6f), strokeWidth = 2f)
+                    }
+                    "FF_SNIPER_AWM" -> {
+                        // Quick Scope Diamond with Mil-Dot lines
+                        val path = Path().apply {
+                            moveTo(center.x, center.y - radius * 0.65f)
+                            lineTo(center.x + radius * 0.65f, center.y)
+                            lineTo(center.x, center.y + radius * 0.65f)
+                            lineTo(center.x - radius * 0.65f, center.y)
+                            close()
+                        }
+                        drawPath(path, color = markerColor, style = Stroke(width = 1.8f))
+                        drawCircle(color = markerColor, radius = 1.8f, center = center)
+                        drawLine(markerColor, Offset(center.x, 0f), Offset(center.x, center.y - radius * 0.65f), strokeWidth = 1.5f)
+                        drawLine(markerColor, Offset(center.x, center.y + radius * 0.65f), Offset(center.x, size.height), strokeWidth = 1.5f)
+                        drawLine(markerColor, Offset(0f, center.y), Offset(center.x - radius * 0.65f, center.y), strokeWidth = 1.5f)
+                        drawLine(markerColor, Offset(center.x + radius * 0.65f, center.y), Offset(size.width, center.y), strokeWidth = 1.5f)
+                    }
+                    "FF_DYNAMIC_SPREAD" -> {
+                        // Shotgun & SMG Spread Circle with 4-corner tick marks
+                        drawCircle(color = markerColor.copy(alpha = 0.6f), radius = radius * 0.8f, center = center, style = Stroke(width = 1.8f))
+                        drawCircle(color = markerColor, radius = 2.2f, center = center)
+                        val offsetD = radius * 0.57f
+                        drawLine(markerColor, Offset(center.x - offsetD, center.y - offsetD), Offset(center.x - offsetD - 4f, center.y - offsetD - 4f), strokeWidth = 2f)
+                        drawLine(markerColor, Offset(center.x + offsetD, center.y - offsetD), Offset(center.x + offsetD + 4f, center.y - offsetD - 4f), strokeWidth = 2f)
+                        drawLine(markerColor, Offset(center.x - offsetD, center.y + offsetD), Offset(center.x - offsetD - 4f, center.y + offsetD + 4f), strokeWidth = 2f)
+                        drawLine(markerColor, Offset(center.x + offsetD, center.y + offsetD), Offset(center.x + offsetD + 4f, center.y + offsetD + 4f), strokeWidth = 2f)
+                    }
+                    "FF_CYBER_ASSIST" -> {
+                        // Dual Ring Cyber Aim Assist
+                        drawCircle(color = markerColor, radius = radius * 0.45f, center = center, style = Stroke(width = 2.2f))
+                        drawCircle(color = markerColor.copy(alpha = 0.4f), radius = radius * 0.85f, center = center, style = Stroke(width = 1.2f))
+                        drawCircle(color = markerColor, radius = 1.5f, center = center)
+                        val cross = radius * 0.25f
+                        drawLine(markerColor, Offset(center.x, center.y - radius * 0.85f), Offset(center.x, center.y - cross), strokeWidth = 1.6f)
+                        drawLine(markerColor, Offset(center.x, center.y + cross), Offset(center.x, center.y + radius * 0.85f), strokeWidth = 1.6f)
+                        drawLine(markerColor, Offset(center.x - radius * 0.85f, center.y), Offset(center.x - cross, center.y), strokeWidth = 1.6f)
+                        drawLine(markerColor, Offset(center.x + cross, center.y), Offset(center.x + radius * 0.85f, center.y), strokeWidth = 1.6f)
                     }
                     "SNIPER" -> {
                         drawCircle(color = markerColor, radius = radius * 0.85f, center = center, style = Stroke(width = 2f))

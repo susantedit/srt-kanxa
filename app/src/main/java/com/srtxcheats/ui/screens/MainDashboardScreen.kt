@@ -37,15 +37,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.CompassCalibration
 import androidx.compose.material.icons.filled.Gamepad
+import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.SimCard
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -63,11 +69,19 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import com.srtxcheats.core.DualSimManager
+import com.srtxcheats.core.GameFocusModeManager
+import com.srtxcheats.core.NetworkBooster
+import com.srtxcheats.core.ScreenCaptureManager
+import com.srtxcheats.core.SignalRadarScanner
+import com.srtxcheats.core.SystemCleaner
+import com.srtxcheats.ui.overlay.MarkerConstants
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -129,7 +143,8 @@ fun MainDashboardScreen(
     onToggleGamingMode: (Boolean) -> Unit = {},
     onTogglePerformanceBoost: (Boolean) -> Unit = {},
     onOpenShizuku: () -> Unit,
-    onOpenTouchTest: () -> Unit
+    onOpenTouchTest: () -> Unit,
+    onOpenRadar: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
@@ -707,6 +722,427 @@ fun MainDashboardScreen(
                             uncheckedTrackColor = Color(0x33FFFFFF)
                         )
                     )
+                }
+
+                // Switch 3: iQOO & iPhone 200% Touch Ultra Mode
+                var is200TouchActive by remember { mutableStateOf(false) }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (is200TouchActive) Color(0x1400E676) else Color(0x0AFFFFFF))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(if (is200TouchActive) Color(0x3300E676) else Color(0x1AFFFFFF)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Speed,
+                                contentDescription = "200% Touch Ultra",
+                                tint = if (is200TouchActive) GamingGreen else TextMuted,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    text = "iQOO & iPhone 200% Touch",
+                                    color = TextPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Surface(
+                                    color = if (is200TouchActive) Color(0x3300E676) else Color(0x22FFFFFF),
+                                    shape = RoundedCornerShape(3.dp)
+                                ) {
+                                    Text(
+                                        text = if (is200TouchActive) "200% SENSI" else "OFF",
+                                        color = if (is200TouchActive) GamingGreen else TextSecondary,
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "LSQ2 velocity tracker & 7/7 speed. Feels like 200% in Free Fire even at 0",
+                                color = TextSecondary,
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+
+                    Switch(
+                        checked = is200TouchActive,
+                        onCheckedChange = { active ->
+                            is200TouchActive = active
+                            coroutineScope.launch {
+                                val engine = SensitivityEngine(context)
+                                if (active) {
+                                    val res = engine.applyIphoneIqooUltraMode()
+                                    Toast.makeText(context, res.message, Toast.LENGTH_SHORT).show()
+                                } else {
+                                    engine.restoreOriginal()
+                                    Toast.makeText(context, "Touch sensitivity restored to 1.0X", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.Black,
+                            checkedTrackColor = GamingGreen,
+                            uncheckedThumbColor = TextMuted,
+                            uncheckedTrackColor = Color(0x33FFFFFF)
+                        )
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // GAME ASSISTANT TOOLBELT (Deep Clean, DND Focus Mode, Screenshot, Screen Record)
+        val focusModeManager = remember { GameFocusModeManager(context) }
+        val screenCaptureManager = remember { ScreenCaptureManager(context) }
+        val systemCleaner = remember { SystemCleaner(context) }
+        val dualSimManager = remember { DualSimManager(context) }
+        val networkBooster = remember { NetworkBooster(context) }
+
+        var isFocusActive by remember { mutableStateOf(focusModeManager.isFocusModeActive()) }
+        val isRecording by screenCaptureManager.isRecording.collectAsState()
+        val recordDuration by screenCaptureManager.recordingDurationSec.collectAsState()
+        var cleanStatus by remember { mutableStateOf<String?>(null) }
+        var isCleaning by remember { mutableStateOf(false) }
+
+        GlassCard(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("game_assistant_toolbelt_card"),
+            glowAccent = true
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color(0x2200E676)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Security,
+                                contentDescription = null,
+                                tint = GamingGreen,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Text(
+                            text = "GAME ASSISTANT TOOLBELT",
+                            color = TextPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+
+                    Surface(
+                        color = Color(0x1A00E676),
+                        shape = RoundedCornerShape(4.dp),
+                        border = BorderStroke(1.dp, Color(0x3300E676))
+                    ) {
+                        Text(
+                            text = "PRO FF SUITE",
+                            color = GamingGreen,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                // Focus Mode Total Silence Toggle
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (isFocusActive) Color(0x22FF5252) else Color(0x0AFFFFFF))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(if (isFocusActive) Color(0x33FF5252) else Color(0x1AFFFFFF)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isFocusActive) Icons.Default.NotificationsOff else Icons.Default.Notifications,
+                                contentDescription = null,
+                                tint = if (isFocusActive) GamingCrimson else TextMuted,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    text = "Game Focus Mode (Total Silence)",
+                                    color = TextPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                if (isFocusActive) {
+                                    Surface(
+                                        color = Color(0x33FF5252),
+                                        shape = RoundedCornerShape(3.dp)
+                                    ) {
+                                        Text(
+                                            text = "ZERO INTERRUPTIONS",
+                                            color = GamingCrimson,
+                                            fontSize = 7.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            Text(
+                                text = "Blocks calls, heads-up notifications & vibration until disabled",
+                                color = TextSecondary,
+                                fontSize = 9.5.sp
+                            )
+                        }
+                    }
+
+                    Switch(
+                        checked = isFocusActive,
+                        onCheckedChange = { enable ->
+                            if (enable) {
+                                val ok = focusModeManager.enableFocusMode()
+                                if (!ok && !focusModeManager.hasDndPermission()) {
+                                    focusModeManager.requestDndPermission()
+                                }
+                                isFocusActive = focusModeManager.isFocusModeActive()
+                            } else {
+                                focusModeManager.disableFocusMode()
+                                isFocusActive = false
+                            }
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.Black,
+                            checkedTrackColor = GamingCrimson,
+                            uncheckedThumbColor = TextMuted,
+                            uncheckedTrackColor = Color(0x33FFFFFF)
+                        )
+                    )
+                }
+
+                // Quick Action Buttons Grid (Clean All, Screenshot, Screen Record)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Deep Clean Button
+                    Button(
+                        onClick = {
+                            if (!isCleaning) {
+                                isCleaning = true
+                                coroutineScope.launch {
+                                    val res = systemCleaner.cleanAll()
+                                    cleanStatus = "Freed ${res.freedRamMb}MB (${res.killedProcesses} tasks killed)"
+                                    isCleaning = false
+                                    Toast.makeText(context, cleanStatus ?: "Cleaned!", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(42.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0x2200E5FF)),
+                        border = BorderStroke(1.dp, NeonCyan.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.Bolt, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (isCleaning) "CLEANING..." else "CLEAN ALL",
+                            color = NeonCyan,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    // Screenshot Button
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                val res = screenCaptureManager.takeScreenshot()
+                                when (res) {
+                                    is ScreenCaptureManager.CaptureResult.Success -> {
+                                        Toast.makeText(context, "Screenshot saved to Gallery!", Toast.LENGTH_SHORT).show()
+                                    }
+                                    is ScreenCaptureManager.CaptureResult.Error -> {
+                                        Toast.makeText(context, res.message, Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(42.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0x22FF9100)),
+                        border = BorderStroke(1.dp, GamingAmber.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = null, tint = GamingAmber, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("SCREENSHOT", color = GamingAmber, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    // Screen Record Button
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                if (isRecording) {
+                                    val res = screenCaptureManager.stopRecording()
+                                    when (res) {
+                                        is ScreenCaptureManager.CaptureResult.Success -> {
+                                            Toast.makeText(context, "Saved 60fps recording to Movies!", Toast.LENGTH_LONG).show()
+                                        }
+                                        is ScreenCaptureManager.CaptureResult.Error -> {
+                                            Toast.makeText(context, res.message, Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                } else {
+                                    val res = screenCaptureManager.startRecording(bitRateMbps = 16)
+                                    if (res is ScreenCaptureManager.CaptureResult.Error) {
+                                        Toast.makeText(context, res.message, Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(42.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isRecording) Color(0x33FF5252) else Color(0x22101726)
+                        ),
+                        border = BorderStroke(1.dp, if (isRecording) GamingCrimson else Color(0x33FFFFFF)),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isRecording) Icons.Default.Stop else Icons.Default.Videocam,
+                            contentDescription = null,
+                            tint = if (isRecording) GamingCrimson else TextPrimary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (isRecording) "${recordDuration}s" else "RECORD",
+                            color = if (isRecording) GamingCrimson else TextPrimary,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 360° NETWORK RADAR & SMART DUAL SIM PROMO CARD
+        GlassCard(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onOpenRadar() }
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0x2200E5FF)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CompassCalibration,
+                            contentDescription = null,
+                            tint = NeonCyan,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = "360° SIGNAL RADAR & DUAL SIM",
+                                color = TextPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Surface(
+                                color = Color(0x2200E5FF),
+                                shape = RoundedCornerShape(3.dp)
+                            ) {
+                                Text(
+                                    text = "360° HUD",
+                                    color = NeonCyan,
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            text = "Find tower direction, switch fastest SIM & ping SEA gaming cluster",
+                            color = TextSecondary,
+                            fontSize = 9.5.sp
+                        )
+                    }
+                }
+
+                Button(
+                    onClick = { onOpenRadar() },
+                    colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
+                    shape = RoundedCornerShape(6.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text("SCAN", color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

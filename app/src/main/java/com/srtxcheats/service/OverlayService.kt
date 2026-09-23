@@ -41,6 +41,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -96,6 +97,12 @@ class OverlayService : Service() {
     private var currentProfile by mutableStateOf(GameProfile.defaultFor("", "Free Fire MAX"))
     private lateinit var keyRepository: KeyRepository
     private val sensitivityEngine by lazy { com.srtxcheats.sensitivity.SensitivityEngine(this) }
+    private val focusModeManager by lazy { com.srtxcheats.core.GameFocusModeManager(this) }
+    private val screenCaptureManager by lazy { com.srtxcheats.core.ScreenCaptureManager(this) }
+    private val systemCleaner by lazy { com.srtxcheats.core.SystemCleaner(this) }
+    private val dualSimManager by lazy { com.srtxcheats.core.DualSimManager(this) }
+    private val signalRadarScanner by lazy { com.srtxcheats.core.SignalRadarScanner(this) }
+    private val networkBooster by lazy { com.srtxcheats.core.NetworkBooster(this) }
 
     override fun onCreate() {
         super.onCreate()
@@ -156,6 +163,16 @@ class OverlayService : Service() {
                 }
                 delay(3000)
             }
+        }
+
+        // Enforce saved system sensitivity on service startup
+        serviceScope.launch {
+            try {
+                val initProf = dataStoreManager.gameProfileFlow.first()
+                if (initProf.sensiReductionPercent != 0) {
+                    sensitivityEngine.applySensiStep(initProf.sensiReductionPercent)
+                }
+            } catch (_: Exception) {}
         }
 
         setupOverlayView()
@@ -312,6 +329,7 @@ class OverlayService : Service() {
                     onSensiReductionChange = { red ->
                         serviceScope.launch {
                             dataStoreManager.saveSensiReduction(red)
+                            sensitivityEngine.applySensiStep(red)
                         }
                     },
                     onRestoreSensi = {
@@ -346,6 +364,22 @@ class OverlayService : Service() {
                             dataStoreManager.saveFireMacroEnabled(enabled)
                         }
                     },
+                    onUpdateCrosshairSize = { size ->
+                        serviceScope.launch {
+                            dataStoreManager.updateCrosshairSettings(currentProfile.crosshairStyle, currentProfile.crosshairColor, size)
+                        }
+                    },
+                    onUpdateCrosshairSettings = { style, color, size ->
+                        serviceScope.launch {
+                            dataStoreManager.updateCrosshairSettings(style, color, size)
+                        }
+                    },
+                    focusModeManager = focusModeManager,
+                    screenCaptureManager = screenCaptureManager,
+                    systemCleaner = systemCleaner,
+                    dualSimManager = dualSimManager,
+                    radarScanner = signalRadarScanner,
+                    networkBooster = networkBooster,
                     onOpenApp = {
                         val appIntent = Intent(this@OverlayService, MainActivity::class.java).apply {
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -386,6 +420,7 @@ class OverlayService : Service() {
                         WindowManager.LayoutParams.TYPE_PHONE
                     },
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                     PixelFormat.TRANSLUCENT
@@ -497,11 +532,13 @@ class OverlayService : Service() {
                             onUpdateSensX = { sx ->
                                 serviceScope.launch {
                                     dataStoreManager.saveFireMacroSensX(sx)
+                                    sensitivityEngine.applyMacroSensitivity(sx, currentProfile.fireMacroSensY)
                                 }
                             },
                             onUpdateSensY = { sy ->
                                 serviceScope.launch {
                                     dataStoreManager.saveFireMacroSensY(sy)
+                                    sensitivityEngine.applyMacroSensitivity(currentProfile.fireMacroSensX, sy)
                                 }
                             },
                             onUpdateAlpha = { a ->
@@ -589,6 +626,8 @@ class OverlayService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        signalRadarScanner.stopScan()
+        networkBooster.releaseLowLatencyLock()
         isServiceRunning = false
 
         overlayView?.let {

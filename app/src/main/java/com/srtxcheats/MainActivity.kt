@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AspectRatio
+import androidx.compose.material.icons.filled.CompassCalibration
 import androidx.compose.material.icons.filled.Gamepad
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Layers
@@ -51,8 +52,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.srtxcheats.core.DualSimManager
 import com.srtxcheats.core.GameDetector
+import com.srtxcheats.core.NetworkBooster
 import com.srtxcheats.core.PerformanceMonitor
+import com.srtxcheats.core.SignalRadarScanner
 import com.srtxcheats.data.DataStoreManager
 import com.srtxcheats.data.LogoHelper
 import com.srtxcheats.display.StretchScreen
@@ -68,6 +72,7 @@ import com.srtxcheats.service.OverlayService
 import com.srtxcheats.ui.screens.AboutScreen
 import com.srtxcheats.ui.screens.GameSelectorScreen
 import com.srtxcheats.ui.screens.MainDashboardScreen
+import com.srtxcheats.ui.screens.NetworkRadarScreen
 import com.srtxcheats.ui.screens.OverlaySettingsScreen
 import com.srtxcheats.ui.screens.ShizukuScreen
 import com.srtxcheats.ui.screens.SplashScreen
@@ -84,6 +89,7 @@ import kotlinx.coroutines.launch
 
 enum class AppTab(val title: String, val icon: ImageVector) {
     DASHBOARD("Dashboard", Icons.Default.Speed),
+    RADAR("Radar", Icons.Default.CompassCalibration),
     GAMES("Games", Icons.Default.Gamepad),
     STRETCH("Stretch", Icons.Default.AspectRatio),
     SENSI("Sensi", Icons.Default.Tune),
@@ -325,8 +331,22 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onOpenTouchTest = {
                                     currentTab = AppTab.SENSI
+                                },
+                                onOpenRadar = {
+                                    currentTab = AppTab.RADAR
                                 }
                             )
+
+                            AppTab.RADAR -> {
+                                val dualSimMgr = remember { DualSimManager(this@MainActivity) }
+                                val radarScanner = remember { SignalRadarScanner(this@MainActivity) }
+                                val netBooster = remember { NetworkBooster(this@MainActivity) }
+                                NetworkRadarScreen(
+                                    dualSimManager = dualSimMgr,
+                                    radarScanner = radarScanner,
+                                    networkBooster = netBooster
+                                )
+                            }
 
                             AppTab.GAMES -> GameSelectorScreen(
                                 currentSelectedPackage = profile.packageName,

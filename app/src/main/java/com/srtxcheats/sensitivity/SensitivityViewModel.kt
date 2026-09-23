@@ -119,4 +119,27 @@ class SensitivityViewModel(private val context: Context) : ViewModel() {
             loadInitialState()
         }
     }
+
+    fun applyIphoneIqooUltraMode() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isApplying = true, statusMessage = null)
+            val result = engine.applyIphoneIqooUltraMode()
+            val caps = SensitivityCapabilityDetector.detectCapabilities(context)
+            val hasBkp = engine.hasBackup()
+
+            _uiState.value = _uiState.value.copy(
+                isApplying = false,
+                sliderPercent = 100,
+                currentLevel = SensitivityLevel.ULTRA_HIGH,
+                lastResult = result,
+                requestedMultiplier = result.requestedMultiplier,
+                actualSupportedMultiplier = result.actualSupportedMultiplier,
+                supportStatus = result.supportStatus,
+                statusMessage = result.message,
+                isError = !result.isSuccess,
+                capabilities = caps,
+                hasBackup = hasBkp
+            )
+        }
+    }
 }

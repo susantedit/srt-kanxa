@@ -77,6 +77,16 @@ fun LoginScreen(
     var keyInput by remember { mutableStateOf("") }
     val hwid = remember { DeviceInfo.getHwid(context) }
 
+    androidx.compose.runtime.LaunchedEffect(uiState) {
+        if (uiState is LoginUiState.InvalidKey ||
+            uiState is LoginUiState.HwidMismatch ||
+            uiState is LoginUiState.KeyExpired ||
+            (uiState is LoginUiState.Error && !uiState.message.contains("Please enter", ignoreCase = true))
+        ) {
+            com.srtxcheats.security.SecurityAlarmSoundPlayer.playAlarm5Times(context)
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()

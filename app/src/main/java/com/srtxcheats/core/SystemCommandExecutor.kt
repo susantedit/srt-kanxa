@@ -26,7 +26,7 @@ object SystemCommandExecutor {
             return@withContext ExecutionResult(
                 success = false,
                 stdout = "",
-                stderr = "Shizuku service is not authorized or running",
+                stderr = "Privileged service (Shizuku or Root) is not authorized or running",
                 exitCode = -1
             )
         }
