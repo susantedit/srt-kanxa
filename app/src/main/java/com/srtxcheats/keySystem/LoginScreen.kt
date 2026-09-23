@@ -371,7 +371,7 @@ fun LoginScreen(
                         ),
                         border = androidx.compose.foundation.BorderStroke(1.dp, GamingAmber.copy(alpha = 0.5f))
                     ) {
-                        Text("GET KEY", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("FREE PREMIUM ACCESS", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.width(4.dp))
                         Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(12.dp))
                     }
