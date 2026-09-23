@@ -27,6 +27,7 @@ object SecurityAlarmSoundPlayer {
         R.raw.sound_2,
         R.raw.sound_3,
         R.raw.sound_4,
+        R.raw.sound_5,
         R.raw.sound_last
     )
 
