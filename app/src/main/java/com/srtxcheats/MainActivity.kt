@@ -21,7 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AspectRatio
-import androidx.compose.material.icons.filled.CompassCalibration
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Gamepad
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Layers
@@ -89,7 +89,7 @@ import kotlinx.coroutines.launch
 
 enum class AppTab(val title: String, val icon: ImageVector) {
     DASHBOARD("Dashboard", Icons.Default.Speed),
-    RADAR("Radar", Icons.Default.CompassCalibration),
+    RADAR("Radar", Icons.Default.Explore),
     GAMES("Games", Icons.Default.Gamepad),
     STRETCH("Stretch", Icons.Default.AspectRatio),
     SENSI("Sensi", Icons.Default.Tune),

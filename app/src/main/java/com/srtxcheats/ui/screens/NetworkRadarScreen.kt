@@ -34,7 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.CompassCalibration
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SimCard
@@ -150,7 +150,7 @@ fun NetworkRadarScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.CompassCalibration,
+                        imageVector = Icons.Default.Explore,
                         contentDescription = "Radar",
                         tint = NeonCyan,
                         modifier = Modifier.size(22.dp)
@@ -333,7 +333,7 @@ fun NetworkRadarScreen(
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Icon(
-                        imageVector = if (radarState.isScanning) Icons.Default.NetworkCheck else Icons.Default.CompassCalibration,
+                        imageVector = if (radarState.isScanning) Icons.Default.NetworkCheck else Icons.Default.Explore,
                         contentDescription = null,
                         tint = Color.Black,
                         modifier = Modifier.size(18.dp)

@@ -38,7 +38,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.CompassCalibration
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Gamepad
 import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.Layers
@@ -1100,7 +1100,7 @@ fun MainDashboardScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.CompassCalibration,
+                            imageVector = Icons.Default.Explore,
                             contentDescription = null,
                             tint = NeonCyan,
                             modifier = Modifier.size(26.dp)

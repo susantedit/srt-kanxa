@@ -38,7 +38,6 @@ import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.CompassCalibration
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Launch
 import androidx.compose.material.icons.filled.NotificationsOff
