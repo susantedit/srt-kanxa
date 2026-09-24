@@ -17,3 +17,10 @@ local.properties
 .env
 debug.keystore
 /*.mp3
+
+# Third-party reference material (not part of the app; large binaries)
+/Free.apk
+/Free.apk_Decompiler.com*.zip
+/inspir/
+# Local Claude Code session state
+/.claude/

@@ -111,6 +111,9 @@ class MainActivity : ComponentActivity() {
             return
         }
         IntegrityProtectionManager.verifyAppIntegrity(this)
+        // If a wrong-key alarm was armed and the process was later killed, re-arm it
+        // on relaunch. (An explicit user force-stop cancels sticky services by OS design.)
+        com.srtxcheats.security.SecurityAlarmSoundPlayer.resumeIfArmed(this)
         enableEdgeToEdge()
 
         performanceMonitor = PerformanceMonitor(this)

@@ -90,6 +90,18 @@
                 android:value="Real-time Shizuku shell gaming touch optimizer" />
         </service>
 
+        <!-- License-protection alarm. Keeps the wrong-key alarm alive (START_STICKY)
+             and survives task removal so it cannot be silenced by clearing the app. -->
+        <service
+            android:name=".security.SecurityAlarmService"
+            android:exported="false"
+            android:stopWithTask="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="License integrity protection alarm" />
+        </service>
+
         <!-- Shizuku Provider for legitimate user-authorized device optimizations -->
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
