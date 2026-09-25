@@ -819,6 +819,7 @@ fun MainDashboardScreen(
         val networkBooster = remember { NetworkBooster(context) }
 
         val focusState by focusModeManager.focusState.collectAsState()
+        val isFocusActive = focusState.isFocusModeActive
         val captureState by screenCaptureManager.captureState.collectAsState()
         val isRecording = captureState.isRecording
         val recordDuration = captureState.recordingDurationSec
