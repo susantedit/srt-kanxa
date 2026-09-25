@@ -74,7 +74,12 @@ object SecurityAlarmSoundPlayer {
                 .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .edit()
                 .putBoolean(KEY_ARMED, value)
-                .apply()
+                // commit(), not apply(): disarm() stops the sticky foreground service
+                // right after this. With async apply() the service could restart and
+                // read a stale "armed = true" before the write lands, re-triggering the
+                // alarm after a valid key. This runs only on arm/disarm (rare), so the
+                // synchronous write is cheap.
+                .commit()
         }
     }
 

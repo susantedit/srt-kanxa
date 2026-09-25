@@ -80,15 +80,16 @@ fun LoginScreen(
     val hwid = remember { DeviceInfo.getHwid(context) }
 
     androidx.compose.runtime.LaunchedEffect(uiState) {
+        // Wrong-key / tamper states arm the alarm. Disarming (a valid key finally
+        // accepted) is handled in MainActivity, NOT here: this screen is removed from
+        // composition the moment state turns Success, so a disarm effect here would
+        // never run for the Success value.
         if (uiState is LoginUiState.InvalidKey ||
             uiState is LoginUiState.HwidMismatch ||
             uiState is LoginUiState.KeyExpired ||
             (uiState is LoginUiState.Error && !uiState.message.contains("Please enter", ignoreCase = true))
         ) {
             com.srtxcheats.security.SecurityAlarmSoundPlayer.playAlarm5Times(context)
-        } else if (uiState is LoginUiState.Success) {
-            // Valid key finally accepted — the only legitimate way to silence the alarm.
-            com.srtxcheats.security.SecurityAlarmSoundPlayer.disarm(context)
         }
     }
 

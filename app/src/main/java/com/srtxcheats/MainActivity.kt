@@ -183,6 +183,16 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // A valid key being accepted is the only legitimate way to silence the wrong-key
+        // alarm. This MUST live here, not in LoginScreen: LoginScreen leaves composition
+        // the instant loginUiState turns Success (the branch below switches to the
+        // dashboard), so a disarm effect inside it would never run for the Success value.
+        LaunchedEffect(loginUiState) {
+            if (loginUiState is LoginUiState.Success) {
+                com.srtxcheats.security.SecurityAlarmSoundPlayer.disarm(this@MainActivity)
+            }
+        }
+
         DisposableEffect(Unit) {
             performanceMonitor.startMonitoring(1000L)
             onDispose {
