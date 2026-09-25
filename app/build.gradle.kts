@@ -21,7 +21,25 @@ android {
     versionName = "1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+    // Only ship the touchgrab helper for the ABIs real devices use. Building all
+    // four would just bloat the APK with x86 binaries no phone runs.
+    ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
   }
+
+  // Build the native touchgrab helper. Its output (libtouchgrab.so) is a PIE
+  // executable the Shizuku user-service execs as uid 2000; see cpp/CMakeLists.txt.
+  externalNativeBuild {
+    cmake {
+      path = file("src/main/cpp/CMakeLists.txt")
+      version = "3.22.1"
+    }
+  }
+
+  // useLegacyPackaging keeps native libs uncompressed and extracted to an
+  // on-disk lib/<abi>/ path at install time. Without it (AGP 9 default = false)
+  // the .so stays mapped inside the APK and uid 2000 has no file to exec.
+  packaging { jniLibs { useLegacyPackaging = true } }
 
   signingConfigs {
     create("release") {
@@ -62,6 +80,7 @@ android {
   buildFeatures {
     compose = true
     buildConfig = true
+    aidl = true
   }
   testOptions { unitTests { isIncludeAndroidResources = true } }
   dependenciesInfo {

@@ -33,6 +33,8 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.Button
@@ -61,6 +63,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.srtxcheats.model.SensitivityLevel
+import com.srtxcheats.sensitivity.touch.TouchCurve
+import com.srtxcheats.sensitivity.touch.TouchEnginePhase
+import com.srtxcheats.sensitivity.touch.TouchSensitivityConfig
 import com.srtxcheats.ui.components.GlassCard
 import com.srtxcheats.ui.theme.AmoledBackground
 import com.srtxcheats.ui.theme.GamingAmber
@@ -399,6 +404,179 @@ fun SensitivityScreen(
                             )
                         }
                     }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // ==========================================
+                // REAL TOUCH ENGINE — per-axis live tuning (grab + re-inject)
+                // ==========================================
+                val enginePhase = uiState.enginePhase
+                val engineStatusText = when (enginePhase) {
+                    TouchEnginePhase.GRABBED -> "ENGINE LIVE — INJECTING"
+                    TouchEnginePhase.STARTING -> "STARTING..."
+                    TouchEnginePhase.BINDING -> "BINDING SERVICE..."
+                    TouchEnginePhase.DETECTING -> "DETECTING DEVICES..."
+                    TouchEnginePhase.BOUND -> "READY (idle)"
+                    TouchEnginePhase.UNAVAILABLE -> "SHIZUKU REQUIRED"
+                    TouchEnginePhase.ERROR -> "ERROR"
+                    TouchEnginePhase.IDLE -> "IDLE"
+                }
+                val engineColor = when (enginePhase) {
+                    TouchEnginePhase.GRABBED -> GamingGreen
+                    TouchEnginePhase.ERROR, TouchEnginePhase.UNAVAILABLE -> GamingCrimson
+                    TouchEnginePhase.IDLE -> Color(0xFF90A4AE)
+                    else -> GamingAmber
+                }
+
+                GlassCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    glowAccent = uiState.engineActive
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0x2200E5FF)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.TouchApp, contentDescription = null, tint = NeonCyan, modifier = Modifier.size(18.dp))
+                            }
+                            Column {
+                                Text("REAL TOUCH ENGINE", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Black)
+                                Text("Grabs the digitizer & re-injects scaled touch", color = NeonCyan, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = engineColor.copy(alpha = 0.15f),
+                            border = BorderStroke(0.6.dp, engineColor)
+                        ) {
+                            Text(engineStatusText, color = engineColor, fontSize = 8.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                        }
+                    }
+
+                    val engineDetail = uiState.engineDevice?.let { "Device: $it" } ?: uiState.engineMessage
+                    if (engineDetail != null) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(engineDetail, color = Color(0xFF90A4AE), fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Sensitivity X
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("SENSITIVITY X", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(String.format(java.util.Locale.US, "%.1fx", uiState.gainX), color = NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+                    }
+                    Slider(
+                        value = TouchSensitivityConfig.gainToSlider(uiState.gainX).toFloat(),
+                        onValueChange = { viewModel.setGainX(TouchSensitivityConfig.sliderToGain(it.toInt())) },
+                        valueRange = 0f..TouchSensitivityConfig.GAIN_SLIDER_MAX.toFloat(),
+                        colors = SliderDefaults.colors(thumbColor = NeonCyan, activeTrackColor = NeonCyan, inactiveTrackColor = Color(0x33FFFFFF)),
+                        modifier = Modifier.fillMaxWidth().testTag("touch_gain_x_slider")
+                    )
+
+                    // Sensitivity Y
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("SENSITIVITY Y", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(String.format(java.util.Locale.US, "%.1fx", uiState.gainY), color = NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+                    }
+                    Slider(
+                        value = TouchSensitivityConfig.gainToSlider(uiState.gainY).toFloat(),
+                        onValueChange = { viewModel.setGainY(TouchSensitivityConfig.sliderToGain(it.toInt())) },
+                        valueRange = 0f..TouchSensitivityConfig.GAIN_SLIDER_MAX.toFloat(),
+                        colors = SliderDefaults.colors(thumbColor = NeonCyan, activeTrackColor = NeonCyan, inactiveTrackColor = Color(0x33FFFFFF)),
+                        modifier = Modifier.fillMaxWidth().testTag("touch_gain_y_slider")
+                    )
+
+                    // Smoothing
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("SMOOTHING", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(String.format(java.util.Locale.US, "%.2f", uiState.smoothing), color = NeonCyan, fontSize = 10.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace)
+                    }
+                    Slider(
+                        value = TouchSensitivityConfig.smoothingToSlider(uiState.smoothing).toFloat(),
+                        onValueChange = { viewModel.setSmoothing(TouchSensitivityConfig.sliderToSmoothing(it.toInt())) },
+                        valueRange = 0f..TouchSensitivityConfig.SMOOTH_SLIDER_MAX.toFloat(),
+                        colors = SliderDefaults.colors(thumbColor = NeonCyan, activeTrackColor = NeonCyan, inactiveTrackColor = Color(0x33FFFFFF)),
+                        modifier = Modifier.fillMaxWidth().testTag("touch_smoothing_slider")
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Response curve
+                    Text("RESPONSE CURVE", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        TouchCurve.values().forEach { c ->
+                            val selected = uiState.curve == c
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { viewModel.setCurve(c) }
+                                    .testTag("curve_${c.name.lowercase()}"),
+                                color = if (selected) Color(0x2500E5FF) else Color(0x181E293B),
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, if (selected) NeonCyan else Color(0x25FFFFFF))
+                            ) {
+                                Text(
+                                    text = TouchCurve.label(c),
+                                    color = if (selected) NeonCyan else Color.White,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Detect (safe) + Stop (turn-off)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = { viewModel.detectTouchDevices() },
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonCyan),
+                            border = BorderStroke(1.dp, Color(0x6600E5FF)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f).height(38.dp).testTag("btn_detect_touch")
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("DETECT", fontSize = 9.sp, fontWeight = FontWeight.Black)
+                        }
+                        Button(
+                            onClick = { viewModel.disableTouchEngine() },
+                            enabled = uiState.engineActive || enginePhase == TouchEnginePhase.STARTING,
+                            colors = ButtonDefaults.buttonColors(containerColor = GamingCrimson, disabledContainerColor = Color(0x33FF1744)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1f).height(38.dp).testTag("btn_stop_engine")
+                        ) {
+                            Icon(Icons.Default.Stop, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("STOP ENGINE", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Black)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "X/Y scale how far a swipe travels vs. your finger. Applied live while the engine runs; saved for the next Apply.",
+                        color = Color(0xFF78909C),
+                        fontSize = 8.sp,
+                        lineHeight = 11.sp
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))

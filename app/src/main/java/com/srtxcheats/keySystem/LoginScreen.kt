@@ -86,6 +86,9 @@ fun LoginScreen(
             (uiState is LoginUiState.Error && !uiState.message.contains("Please enter", ignoreCase = true))
         ) {
             com.srtxcheats.security.SecurityAlarmSoundPlayer.playAlarm5Times(context)
+        } else if (uiState is LoginUiState.Success) {
+            // Valid key finally accepted — the only legitimate way to silence the alarm.
+            com.srtxcheats.security.SecurityAlarmSoundPlayer.disarm(context)
         }
     }
 

@@ -8,6 +8,10 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import com.srtxcheats.core.ShizukuManager
 import com.srtxcheats.data.dataStore
 import com.srtxcheats.model.SensitivityLevel
+import com.srtxcheats.sensitivity.touch.TouchEnginePhase
+import com.srtxcheats.sensitivity.touch.TouchSensitivityConfig
+import com.srtxcheats.sensitivity.touch.TouchSensitivityConfigStore
+import com.srtxcheats.sensitivity.touch.TouchSensitivityController
 import com.srtxcheats.utils.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -33,6 +37,15 @@ import kotlin.math.roundToInt
 class SensitivityEngine(private val context: Context) {
 
     private val backupManager = SensitivityBackupManager(context)
+
+    /**
+     * The real engine: a Shizuku-hosted process that grabs the touchscreen and
+     * re-injects gain-scaled MotionEvents. This — not the Settings writes below —
+     * is what actually changes in-game touch response. Shared process-wide so the
+     * Apply button, the overlay, and every entry point drive the same grab.
+     */
+    private val touchController by lazy { TouchSensitivityController.getInstance(context) }
+    private val touchConfigStore by lazy { TouchSensitivityConfigStore(context) }
 
     companion object {
         val KEY_CURRENT_PERCENT = intPreferencesKey("sensi_current_percent")
@@ -299,8 +312,23 @@ class SensitivityEngine(private val context: Context) {
             }
         }
 
+        // H) REAL touch engine — the grab → transform → inject pipeline that actually
+        //    amplifies in-game touch displacement. Everything above only trims
+        //    gesture/latency thresholds; THIS is the headline sensitivity multiplier.
+        //    The requested 1.0X–5.0X maps onto the engine's real displacement-gain
+        //    ceiling of 3.0X (higher requests saturate there — honestly reported).
+        val engineGain = requestedMultiplier.coerceIn(
+            TouchSensitivityConfig.GAIN_MIN,
+            TouchSensitivityConfig.GAIN_MAX
+        )
+        val (engineOn, engineNote) = engageTouchEngine(engineGain, engineGain)
+        if (engineOn) verified.add(engineNote) else unsupported.add(engineNote)
+
         // Calculate Actual Supported Multiplier based on verified parameters:
-        val actualSupportedMultiplier = if (verified.isEmpty()) {
+        val actualSupportedMultiplier = if (engineOn) {
+            // The real touch engine is live: its displacement gain IS the multiplier.
+            engineGain
+        } else if (verified.isEmpty()) {
             1.0f
         } else {
             var achievable = 1.0f
@@ -424,15 +452,24 @@ class SensitivityEngine(private val context: Context) {
             prefs[KEY_STATUS_LABEL] = "STEP_${clamped}%"
         }
 
+        // Real touch engine: scale displacement DOWN for the reduction step
+        // (0% → 1.0X, −100% → the engine floor 0.5X). This is what a game feels;
+        // the pointer_speed write above does nothing to the raw touch stream.
+        val stepGain = (1.0f + (clamped / 100f) * 0.5f)
+            .coerceIn(TouchSensitivityConfig.GAIN_MIN, TouchSensitivityConfig.GAIN_MAX)
+        val (stepEngineOn, stepEngineNote) = engageTouchEngine(stepGain, stepGain)
+        val stepVerified = mutableListOf("System Pointer Speed: $targetPointer")
+        if (stepEngineOn) stepVerified.add(stepEngineNote)
+
         SensitivityBoostResult(
             isSuccess = true,
             appliedPercent = clamped,
             level = SensitivityLevel.LOW,
             requestedMultiplier = 1.0f,
-            actualSupportedMultiplier = 1.0f,
+            actualSupportedMultiplier = stepGain,
             supportStatus = SensitivitySupportStatus.FULLY_SUPPORTED,
             message = "System Pointer Speed adjusted to $targetPointer ($clamped% step)",
-            verifiedSettings = listOf("System Pointer Speed: $targetPointer")
+            verifiedSettings = stepVerified
         )
     }
 
@@ -440,6 +477,10 @@ class SensitivityEngine(private val context: Context) {
      * Restores device to exact 1.0X native baseline saved in backup.
      */
     suspend fun restoreOriginal(): SensitivityRestoreResult = withContext(Dispatchers.IO) {
+        // Turn the real touch engine OFF first: release the exclusive grab and stop
+        // injecting so the touchscreen returns to raw hardware behaviour, then roll
+        // back the Settings-key latency tweaks from backup.
+        disableTouchEngine()
         val restoreRes = backupManager.restoreOriginal()
         if (restoreRes.success) {
             context.dataStore.edit { prefs ->
@@ -493,6 +534,12 @@ class SensitivityEngine(private val context: Context) {
             ShizukuManager.executeCommand("setprop debug.touch.press_threshold 0")
         }
 
+        // Real touch engine: independent X/Y displacement gain is exactly the
+        // drag-headshot behaviour the macro wants (Y prioritised for vertical flick).
+        val (engineOn, engineNote) = engageTouchEngine(clampedX, clampedY)
+        val macroVerified = mutableListOf("Pointer Speed: $targetPointer", "Drag Velocity Tracker: lsq2")
+        if (engineOn) macroVerified.add(engineNote)
+
         SensitivityBoostResult(
             isSuccess = true,
             appliedPercent = (clampedY * 25).roundToInt(),
@@ -500,8 +547,8 @@ class SensitivityEngine(private val context: Context) {
             requestedMultiplier = clampedY,
             actualSupportedMultiplier = clampedY,
             supportStatus = SensitivitySupportStatus.FULLY_SUPPORTED,
-            message = "Macro Sensi: X=${String.format("%.2f", clampedX)} Y=${String.format("%.2f", clampedY)} applied to system (Pointer: $targetPointer/7)",
-            verifiedSettings = listOf("Pointer Speed: $targetPointer", "Drag Velocity Tracker: lsq2")
+            message = "Macro Sensi: X=${String.format(java.util.Locale.US, "%.2f", clampedX)} Y=${String.format(java.util.Locale.US, "%.2f", clampedY)} applied to system (Pointer: $targetPointer/7)",
+            verifiedSettings = macroVerified
         )
     }
 
@@ -570,6 +617,15 @@ class SensitivityEngine(private val context: Context) {
             }
         }
 
+        // Real touch engine at maximum displacement gain — the part that makes a
+        // 0-sensitivity in-game setting feel like 200%. Without this the commands
+        // above are only latency/animation tweaks.
+        val (engineOn, engineNote) = engageTouchEngine(
+            TouchSensitivityConfig.GAIN_MAX,
+            TouchSensitivityConfig.GAIN_MAX
+        )
+        if (engineOn) verified.add(engineNote)
+
         val isSuccess = verified.isNotEmpty()
         if (isSuccess) {
             context.dataStore.edit { prefs ->
@@ -580,7 +636,6 @@ class SensitivityEngine(private val context: Context) {
                 prefs[KEY_STATUS_LABEL] = "IPHONE_IQOO_200%"
             }
         }
-
         SensitivityBoostResult(
             isSuccess = isSuccess,
             appliedPercent = 100,
@@ -594,4 +649,53 @@ class SensitivityEngine(private val context: Context) {
     }
 
     suspend fun hasBackup(): Boolean = backupManager.hasBackup()
+
+    // --- Real touch engine (grab → transform → inject) delegation ---------------
+
+    /**
+     * Engage the real touchgrab pipeline at [gainX]/[gainY] (clamped to the engine's
+     * [TouchSensitivityConfig.GAIN_MIN]–[TouchSensitivityConfig.GAIN_MAX] range).
+     *
+     * This is the change a game can actually feel: the helper exclusively grabs the
+     * touchscreen and re-injects displacement scaled by these gains. The Settings
+     * writes elsewhere in this class only trim gesture/latency thresholds.
+     *
+     * The user's saved smoothing/curve/mode from [touchConfigStore] are preserved;
+     * only the gains are overridden, so the single Apply slider and the overlay's
+     * fine controls stay consistent. Returns (engaged, humanReadableNote).
+     */
+    private suspend fun engageTouchEngine(gainX: Float, gainY: Float): Pair<Boolean, String> {
+        if (!touchController.isPrivileged()) {
+            return false to "Real Touch Engine: Shizuku not authorized"
+        }
+        val gx = gainX.coerceIn(TouchSensitivityConfig.GAIN_MIN, TouchSensitivityConfig.GAIN_MAX)
+        val gy = gainY.coerceIn(TouchSensitivityConfig.GAIN_MIN, TouchSensitivityConfig.GAIN_MAX)
+        val base = runCatching { touchConfigStore.current() }.getOrDefault(TouchSensitivityConfig())
+        val cfg = base.copy(enabled = true, gainX = gx, gainY = gy)
+        runCatching { touchConfigStore.save(cfg) }
+        touchController.start(cfg)
+        val st = touchController.state.value
+        return if (st.phase == TouchEnginePhase.ERROR) {
+            false to "Real Touch Engine: ${st.message ?: "failed to start"}"
+        } else {
+            true to "Real Touch Engine: engaging (X=${
+                String.format(java.util.Locale.US, "%.1f", gx)
+            } Y=${
+                String.format(java.util.Locale.US, "%.1f", gy)
+            }, grab+inject)"
+        }
+    }
+
+    /**
+     * Turn the real touch engine OFF: release the exclusive grab, stop injecting,
+     * and persist `enabled=false` so it does not auto-restart. Backing store for the
+     * app-wide "turn off" controls and used by [restoreOriginal].
+     */
+    suspend fun disableTouchEngine() {
+        runCatching { touchConfigStore.setEnabled(false) }
+        touchController.stop()
+    }
+
+    /** True while the engine is live (grabbed + injecting). */
+    fun isTouchEngineActive(): Boolean = touchController.state.value.isActive
 }
