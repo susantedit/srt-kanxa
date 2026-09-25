@@ -18,4 +18,9 @@ interface ITouchStatusCallback {
 
     // The grab loop ended and the touchscreen was released. Always fires on teardown.
     oneway void onStopped(String reason);
+
+    // Macro/auto-fire lifecycle. kind: "recording_started" | "recorded" | "playing" |
+    // "autoclick" | "stopped" | "error". detail carries the serialized macro for "recorded",
+    // or a short human-readable message otherwise.
+    oneway void onMacroEvent(String kind, String detail);
 }

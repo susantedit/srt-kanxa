@@ -39,4 +39,25 @@ interface ITouchSensitivityService {
 
     void registerStatus(ITouchStatusCallback cb) = 7;
     void unregisterStatus(ITouchStatusCallback cb) = 8;
+
+    // --- Macro / auto-fire (independent of the sensitivity grab; runs alongside it) ---
+
+    // Auto-clicker: tap repeatedly at normalized screen position (nx,ny in 0..1) at
+    // clicksPerSecond (10..100). When loop is false it stops after burstCount taps.
+    void startAutoClick(float nx, float ny, int clicksPerSecond, boolean loop, int burstCount) = 9;
+
+    // Replay a serialized macro (MacroCodec text). speedPercent scales timing (100 = as recorded).
+    void startMacroPlayback(String macroData, int speedPercent, boolean loop) = 10;
+
+    // Begin recording the user's touches via `binPath --monitor` (no grab; game still responds).
+    void startRecording(String binPath) = 11;
+
+    // Stop recording and return the captured macro serialized via MacroCodec (empty string if none).
+    String stopRecording() = 12;
+
+    // Stop any running auto-click / playback (does not affect the sensitivity grab).
+    void stopMacro() = 13;
+
+    // True while an auto-click, playback, or recording is active.
+    boolean isMacroActive() = 14;
 }

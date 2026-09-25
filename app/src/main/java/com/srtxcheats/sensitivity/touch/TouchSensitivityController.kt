@@ -8,6 +8,7 @@ import android.util.Log
 import com.srtxcheats.BuildConfig
 import com.srtxcheats.core.GameDetector
 import com.srtxcheats.core.ShizukuManager
+import com.srtxcheats.macro.MacroPhase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -49,6 +50,9 @@ class TouchSensitivityController private constructor(context: Context) {
 
     private val _state = MutableStateFlow(TouchEngineState())
     val state: StateFlow<TouchEngineState> = _state.asStateFlow()
+
+    private val _macroState = MutableStateFlow(MacroState())
+    val macroState: StateFlow<MacroState> = _macroState.asStateFlow()
 
     @Volatile private var service: ITouchSensitivityService? = null
     @Volatile private var bindContinuation: kotlinx.coroutines.CompletableDeferred<ITouchSensitivityService?>? = null
@@ -157,7 +161,68 @@ class TouchSensitivityController private constructor(context: Context) {
         runCatching { Shizuku.unbindUserService(userServiceArgs, connection, true) }
         service = null
         _state.update { TouchEngineState() }
+        _macroState.update { MacroState() }
     }
+
+    // --- macro / auto-fire ------------------------------------------------------
+    //
+    // These run alongside the sensitivity grab in the same privileged process but
+    // on independent threads, so starting/stopping a macro never disturbs the grab
+    // (and vice-versa). Every one has an explicit off: [stopMacro] for auto-click
+    // and playback, [stopRecording] for recording.
+
+    /**
+     * Auto-clicker: tap repeatedly at normalized screen position ([nx],[ny] in 0..1)
+     * at [cps] clicks/second (clamped 10..100). When [loop] is false it stops after
+     * [burstCount] taps.
+     */
+    suspend fun startAutoClick(nx: Float, ny: Float, cps: Int, loop: Boolean, burstCount: Int) {
+        val svc = ensureBound() ?: return
+        _macroState.update { it.copy(phase = MacroPhase.AUTOCLICK, message = null) }
+        runCatching { svc.startAutoClick(nx, ny, cps, loop, burstCount) }
+            .onFailure { failMacro("autoclick failed: ${it.message}") }
+    }
+
+    /** Replay a serialized macro ([MacroCodec] text). [speedPercent] scales timing (100 = as recorded). */
+    suspend fun playMacro(macroData: String, speedPercent: Int, loop: Boolean) {
+        val svc = ensureBound() ?: return
+        _macroState.update { it.copy(phase = MacroPhase.PLAYING, message = null) }
+        runCatching { svc.startMacroPlayback(macroData, speedPercent, loop) }
+            .onFailure { failMacro("playback failed: ${it.message}") }
+    }
+
+    /** Begin recording the user's touches (no grab — the game keeps responding). */
+    suspend fun startRecording() {
+        val svc = ensureBound() ?: return
+        val bin = binaryPath() ?: run {
+            failMacro("libtouchgrab.so not found in ${appContext.applicationInfo.nativeLibraryDir}")
+            return
+        }
+        _macroState.update { it.copy(phase = MacroPhase.RECORDING, message = "Recording…", lastRecorded = null) }
+        runCatching { svc.startRecording(bin) }
+            .onFailure { failMacro("recording failed: ${it.message}") }
+    }
+
+    /** Stop recording and return the captured macro serialized ([MacroCodec]); empty string if nothing captured. */
+    suspend fun stopRecording(): String {
+        val svc = service ?: return ""
+        return runCatching { svc.stopRecording().orEmpty() }
+            .getOrElse { failMacro("stop recording failed: ${it.message}"); "" }
+    }
+
+    /** Stop any running auto-click / playback. Does not affect recording or the grab. */
+    fun stopMacro() {
+        val svc = service
+        scope.launch {
+            runCatching { svc?.stopMacro() }
+            _macroState.update {
+                if (it.phase == MacroPhase.ERROR) it else it.copy(phase = MacroPhase.IDLE, message = "Stopped")
+            }
+        }
+    }
+
+    /** True while an auto-click, playback, or recording is active in the service. */
+    fun isMacroActive(): Boolean = runCatching { service?.isMacroActive() ?: false }.getOrDefault(false)
 
     // --- binding ---------------------------------------------------------------
 
@@ -280,6 +345,26 @@ class TouchSensitivityController private constructor(context: Context) {
                 else it.copy(phase = TouchEnginePhase.BOUND, devicePath = null, message = "Stopped: ${reason.orEmpty()}")
             }
         }
+
+        override fun onMacroEvent(kind: String?, detail: String?) {
+            when (kind) {
+                "recording_started" ->
+                    _macroState.update { it.copy(phase = MacroPhase.RECORDING, message = "Recording…") }
+                "recorded" ->
+                    _macroState.update { it.copy(phase = MacroPhase.IDLE, message = "Recorded", lastRecorded = detail) }
+                "playing" ->
+                    _macroState.update { it.copy(phase = MacroPhase.PLAYING, message = detail) }
+                "autoclick" ->
+                    _macroState.update { it.copy(phase = MacroPhase.AUTOCLICK, message = detail) }
+                "stopped" ->
+                    _macroState.update {
+                        if (it.phase == MacroPhase.ERROR) it
+                        else it.copy(phase = MacroPhase.IDLE, message = "Stopped")
+                    }
+                "error" -> failMacro("macro: ${detail.orEmpty()}")
+                else -> Log.d(TAG, "macro kind=$kind detail=$detail")
+            }
+        }
     }
 
     // --- watchdog --------------------------------------------------------------
@@ -314,6 +399,11 @@ class TouchSensitivityController private constructor(context: Context) {
     private fun fail(message: String) {
         Log.w(TAG, message)
         _state.update { it.copy(phase = TouchEnginePhase.ERROR, message = message) }
+    }
+
+    private fun failMacro(message: String) {
+        Log.w(TAG, message)
+        _macroState.update { it.copy(phase = MacroPhase.ERROR, message = message) }
     }
 
     companion object {
@@ -365,4 +455,20 @@ data class TouchEngineState(
     val message: String? = null,
 ) {
     val isActive: Boolean get() = phase == TouchEnginePhase.GRABBED
+}
+
+/**
+ * Observable macro/auto-fire status for the UI. Independent of [TouchEngineState] so the
+ * macro panel and the sensitivity panel report their own state without stepping on each other.
+ *
+ * [lastRecorded] carries the serialized macro from the most recent recording (also returned
+ * directly by [TouchSensitivityController.stopRecording]); the UI turns it into a save prompt.
+ */
+data class MacroState(
+    val phase: MacroPhase = MacroPhase.IDLE,
+    val message: String? = null,
+    val lastRecorded: String? = null,
+) {
+    val isBusy: Boolean
+        get() = phase == MacroPhase.RECORDING || phase == MacroPhase.PLAYING || phase == MacroPhase.AUTOCLICK
 }

@@ -21,6 +21,7 @@
  *   TOUCHGRAB_NAME <name>
  *   TOUCHGRAB_RANGE <x_min> <x_max> <y_min> <y_max>
  *   TOUCHGRAB_STATUS grabbed <path>
+ *   TOUCHGRAB_STATUS monitoring <path>
  *   TOUCHGRAB_STATUS detect_complete_no_grab
  *   TOUCHGRAB_STATUS heartbeat_test_no_grab
  *   TOUCHGRAB_STATUS heartbeat_timeout
@@ -332,6 +333,23 @@ static int grab_device(void) {
     return 0;
 }
 
+/*
+ * Open g_device_path read-only WITHOUT grabbing it (monitor mode). Because there
+ * is no EVIOCGRAB, events are still delivered to the foreground app as well, so
+ * the game keeps responding while we observe the user's touches for recording.
+ * Returns 0 on success.
+ */
+static int open_device_only(void) {
+    g_touch_fd = open(g_device_path, O_RDONLY | O_NONBLOCK);
+    if (g_touch_fd < 0) {
+        safe_printf("TOUCHGRAB_ERROR open_failed path=%s errno=%d message=%s\n",
+                    g_device_path, errno, strerror(errno));
+        return -1;
+    }
+    g_grabbed = 0;
+    return 0;
+}
+
 static void emit_device_info(void) {
     safe_printf("TOUCHGRAB_DEVICE %s\n", g_device_path);
     safe_printf("TOUCHGRAB_NAME %s\n", g_device_name);
@@ -352,15 +370,27 @@ static int drain_stdin_heartbeat(void) {
 }
 
 /*
- * Grab the device and stream events until: heartbeat timeout, parent death,
- * stdin EOF, or a terminating signal. Always releases the grab on exit.
+ * Stream events until: heartbeat timeout, parent death, stdin EOF, or a
+ * terminating signal. When do_grab is non-zero the device is grabbed exclusively
+ * (sensitivity mode); when zero it is only opened (monitor/record mode) so the
+ * game still receives the touches. Always releases the grab on exit.
  */
-static int run_active_loop(void) {
-    if (grab_device() != 0) {
-        return 1;
+static int run_stream_loop(int do_grab) {
+    if (do_grab) {
+        if (grab_device() != 0) {
+            return 1;
+        }
+    } else {
+        if (open_device_only() != 0) {
+            return 1;
+        }
     }
     emit_device_info();
-    safe_printf("TOUCHGRAB_STATUS grabbed %s\n", g_device_path);
+    if (do_grab) {
+        safe_printf("TOUCHGRAB_STATUS grabbed %s\n", g_device_path);
+    } else {
+        safe_printf("TOUCHGRAB_STATUS monitoring %s\n", g_device_path);
+    }
     safe_printf("TOUCHGRAB_READY\n");
 
     g_last_heartbeat_ms = now_ms();
@@ -482,8 +512,8 @@ int main(int argc, char **argv) {
     memset(g_device_name, 0, sizeof(g_device_name));
 
     if (argc < 2) {
-        safe_printf("TOUCHGRAB_ERROR usage: %s --heartbeat-test | %s --detect | %s --auto | %s /dev/input/eventX\n",
-                    argv[0], argv[0], argv[0], argv[0]);
+        safe_printf("TOUCHGRAB_ERROR usage: %s --heartbeat-test | %s --detect | %s --auto | %s --monitor | %s /dev/input/eventX\n",
+                    argv[0], argv[0], argv[0], argv[0], argv[0]);
         return 2;
     }
 
@@ -497,7 +527,14 @@ int main(int argc, char **argv) {
         if (find_touchscreen_auto(1) != 0) {
             return 1;
         }
-        return run_active_loop();
+        return run_stream_loop(1);
+    }
+    if (strcmp(argv[1], "--monitor") == 0) {
+        /* Record mode: observe the touchscreen without grabbing it. */
+        if (find_touchscreen_auto(1) != 0) {
+            return 1;
+        }
+        return run_stream_loop(0);
     }
 
     /* Explicit device path. */
@@ -506,5 +543,5 @@ int main(int argc, char **argv) {
                     argv[1], errno, strerror(errno));
         return 1;
     }
-    return run_active_loop();
+    return run_stream_loop(1);
 }

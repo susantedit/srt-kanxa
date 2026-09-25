@@ -67,6 +67,7 @@ import com.srtxcheats.keySystem.LoginViewModel
 import com.srtxcheats.model.GameProfile
 import com.srtxcheats.model.SensitivityLevel
 import com.srtxcheats.security.IntegrityProtectionManager
+import com.srtxcheats.macro.MacroScreen
 import com.srtxcheats.sensitivity.SensitivityScreen
 import com.srtxcheats.service.OverlayService
 import com.srtxcheats.ui.screens.AboutScreen
@@ -93,6 +94,7 @@ enum class AppTab(val title: String, val icon: ImageVector) {
     GAMES("Games", Icons.Default.Gamepad),
     STRETCH("Stretch", Icons.Default.AspectRatio),
     SENSI("Sensi", Icons.Default.Tune),
+    MACRO("Macro", Icons.Default.TouchApp),
     OVERLAY("Overlay", Icons.Default.Layers),
     SYSTEM_ABOUT("System", Icons.Default.Info)
 }
@@ -410,6 +412,10 @@ class MainActivity : ComponentActivity() {
                             )
 
                             AppTab.SENSI -> SensitivityScreen(
+                                onNavigateBack = { currentTab = AppTab.DASHBOARD }
+                            )
+
+                            AppTab.MACRO -> MacroScreen(
                                 onNavigateBack = { currentTab = AppTab.DASHBOARD }
                             )
 
